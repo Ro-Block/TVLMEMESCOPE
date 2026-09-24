@@ -35,7 +35,7 @@ const onTrades: TradeSink = (pair, fresh, now) => {
   snipers.onTrades(pair, fresh, now);
 };
 if (memeMode === 'demo') new DemoMarket(ledger, alerts, onTrades, () => snipers.compute()).start();
-else new LiveScanner(ledger, onTrades).start();
+else new LiveScanner(ledger, onTrades, getSettings).start();
 
 startPoolRotation();
 const flowEvents = new FlowEventEngine();

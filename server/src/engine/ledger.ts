@@ -51,7 +51,7 @@ export class Ledger {
     });
     const stmt = this.db.prepare(`INSERT INTO pools (id, chain, address, token, symbol, created_at, price_usd, trending, updated_at, json)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET price_usd = excluded.price_usd, trending = MAX(pools.trending, excluded.trending), updated_at = excluded.updated_at, json = excluded.json`);
+      ON CONFLICT(id) DO UPDATE SET created_at = CASE WHEN pools.created_at = 0 THEN excluded.created_at ELSE pools.created_at END, price_usd = excluded.price_usd, trending = MAX(pools.trending, excluded.trending), updated_at = excluded.updated_at, json = excluded.json`);
     tx(this.db, () => {
       for (const p of pairs) stmt.run(p.id, p.chain, p.address, p.baseAddress, p.baseSymbol, p.createdAt, p.priceUsd, p.trending ? 1 : 0, this.now(), JSON.stringify(p));
     });

@@ -94,6 +94,31 @@ export const FLOW_EVENTS = {
   supernovaSpike: Number(env.SUPERNOVA_SPIKE ?? 3),
 };
 
+/** Solana trades via Helius (free plan: 1M credits/month, 10 req/s). Key lives only in .env. */
+export const HELIUS = {
+  apiKey: env.HELIUS_API_KEY || '',
+  /** Daily spend cap; 30k/day keeps the free 1M/month plan safe. */
+  dailyCredits: Number(env.HELIUS_DAILY_CREDITS ?? 30_000),
+};
+
+/** Public RPCs used to read swaps straight from each EVM chain. Override in .env. */
+export const RPC: Record<string, string> = {
+  base: env.RPC_BASE || 'https://base-rpc.publicnode.com',
+  bsc: env.RPC_BSC || 'https://bsc-rpc.publicnode.com',
+  hyperevm: env.RPC_HYPEREVM || 'https://rpc.hyperliquid.xyz/evm',
+  robinhood: env.RPC_ROBINHOOD || 'https://rpc.mainnet.chain.robinhood.com',
+};
+
+/** When a new token is worth tracking (checked against DexScreener pair stats). */
+export const PROMOTE = {
+  minTxnsH1: Number(env.PROMOTE_MIN_TXNS_H1 ?? 25),
+  minVolumeH1: Number(env.PROMOTE_MIN_VOLUME_H1 ?? 3_000),
+  minLiquidity: Number(env.PROMOTE_MIN_LIQUIDITY ?? 5_000),
+};
+
+/** Optional wallet labels (fund / exchange / KOL names). Key lives only in .env. */
+export const ARKHAM = { apiKey: env.ARKHAM_API_KEY || '' };
+
 export const DUNE = {
   apiKey: env.DUNE_API_KEY || '',
   queryId: env.DUNE_QUERY_ID || '',

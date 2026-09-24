@@ -209,7 +209,7 @@ export interface StatusResponse {
   sources: Record<string, { ok: boolean; lastError?: string; lastOk?: number }>;
   notify: { telegram: boolean; discord: boolean };
   /** Live scanner progress (null on simulated data). */
-  scanner: { cycles: number; lastCycleAt: number; pairsSeen: number; tradesSeen: number; errors: { at: number; msg: string }[] } | null;
+  scanner: { cycles: number; lastCycleAt: number; pairsSeen: number; tradesSeen: number; errors: { at: number; msg: string }[]; feeds?: Record<string, unknown> } | null;
 }
 
 // ---------- live flow events (solar map effects) ----------

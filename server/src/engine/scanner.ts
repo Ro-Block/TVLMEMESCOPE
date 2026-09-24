@@ -1,141 +1,108 @@
-import type { Pair } from '../../../shared/types.ts';
-import { MEME_CHAINS, SCAN, type MemeChainMeta } from '../config.ts';
-import { detectLaunchpad } from '../launchpads.ts';
+import type { AlertSettings } from '../../../shared/types.ts';
+import { HELIUS, MEME_CHAINS } from '../config.ts';
+import { EVM_CHAINS, EvmFeed } from '../feeds/evm.ts';
+import { SolanaFeed } from '../feeds/solana.ts';
+import { PairTracker, type TradeSink } from '../feeds/tracker.ts';
 import * as ds from '../sources/dexscreener.ts';
 import * as dune from '../sources/dune.ts';
-import * as gt from '../sources/geckoterminal.ts';
+import * as helius from '../sources/helius.ts';
 import * as hl from '../sources/hyperliquid.ts';
 import type { Ledger, SeedStats } from './ledger.ts';
-import type { LedgerTrade } from './roi.ts';
 
-export type TradeSink = (pair: Pair, fresh: LedgerTrade[], now?: number) => void;
-
-export function toPair(p: gt.GtPool, chain: MemeChainMeta, trending: boolean): Pair {
-  return {
-    id: `${chain.id}:${p.address}`,
-    chain: chain.id,
-    address: p.address,
-    dex: p.dex,
-    name: p.name,
-    baseSymbol: p.baseSymbol,
-    baseAddress: p.baseAddress,
-    quoteSymbol: p.quoteSymbol,
-    imageUrl: p.imageUrl,
-    imageFallbackUrl: ds.cdnImage(chain.id, p.baseAddress),
-    launchpad: detectLaunchpad(chain.id, p.dex, p.baseAddress),
-    createdAt: p.createdAt,
-    priceUsd: p.priceUsd,
-    mcap: p.mcap,
-    liquidity: p.liquidity,
-    volume: p.volume,
-    txns: p.txns,
-    change: p.change,
-    trending,
-    smartWallets: [],
-    url: gt.pairUrl(chain.gt, p.address),
-  };
-}
+export type { TradeSink } from '../feeds/tracker.ts';
 
 const DUNE_CHAIN: Record<string, string> = { bnb: 'bsc', base: 'base', solana: 'solana', robinhood: 'robinhood', hyperevm: 'hyperevm' };
 
-/** Polls GeckoTerminal for new/trending pairs and their trades, feeding the ledger and the alert engine. */
+/**
+ * Live memescope data, all from the chains themselves:
+ * - Solana: launches from PumpPortal (free), trades from Helius (free key, credit-budgeted)
+ * - Base, BNB, HyperEVM, Robinhood: pools and swaps over public RPC
+ * - DexScreener for pair stats (price, liquidity, volume) and logos
+ */
 export class LiveScanner {
-  private lastPolled = new Map<string, number>();
+  static stats = {
+    cycles: 0,
+    lastCycleAt: 0,
+    pairsSeen: 0,
+    tradesSeen: 0,
+    errors: [] as { at: number; msg: string }[],
+    feeds: {} as Record<string, unknown>,
+  };
+  private tracker: PairTracker;
+  private solana?: SolanaFeed;
+  private evm: EvmFeed[] = [];
   private imageTried = new Map<string, number>();
-  /** What the scanner has done so far, shown in the UI while live data builds up. */
-  static stats = { cycles: 0, lastCycleAt: 0, pairsSeen: 0, tradesSeen: 0, errors: [] as { at: number; msg: string }[] };
-  private note(msg: string) {
-    console.warn(`[scanner] ${msg}`);
-    LiveScanner.stats.errors = [{ at: Date.now(), msg: msg.slice(0, 200) }, ...LiveScanner.stats.errors].slice(0, 8);
-  }
-  private cycle = 0;
-  private timer: NodeJS.Timeout | null = null;
 
   constructor(
     private ledger: Ledger,
     private onTrades: TradeSink,
-  ) {}
+    private settings: () => AlertSettings,
+  ) {
+    const sink: TradeSink = (pair, fresh, now) => {
+      LiveScanner.stats.tradesSeen += fresh.length;
+      this.onTrades(pair, fresh, now);
+    };
+    this.tracker = new PairTracker(ledger, sink, (chain, wallet) => this.ledger.qualifies(this.ledger.get(chain, wallet), this.settings()));
+  }
 
-  /** Returns false if GeckoTerminal is unreachable. Warns about configured networks GT doesn't list. */
+  private note(msg: string) {
+    console.warn(`[scanner] ${msg}`);
+    LiveScanner.stats.errors = [{ at: Date.now(), msg: msg.slice(0, 200) }, ...LiveScanner.stats.errors].slice(0, 8);
+  }
+
+  /** Auto mode: live if DexScreener answers (it backs every chain's pair stats). */
   static async probe(): Promise<boolean> {
     try {
-      const nets = new Set(await gt.networks());
-      for (const c of MEME_CHAINS) if (!nets.has(c.gt)) console.warn(`[scanner] GeckoTerminal network "${c.gt}" (${c.name}) not on page 1 of /networks — set GT_NETWORK_${c.id.toUpperCase()} if the id differs`);
+      await ds.latestProfiles();
       return true;
     } catch (e) {
-      console.warn(`[scanner] GeckoTerminal unreachable: ${(e as Error).message}`);
+      console.warn(`[scanner] DexScreener unreachable: ${(e as Error).message}`);
       return false;
     }
   }
 
+  /** Solana wallets worth watching: your watchlist first, then the best qualifying traders. */
+  private solanaWallets = () => {
+    const st = this.settings();
+    return this.ledger
+      .allStats()
+      .filter((s) => s.chain === 'solana' && (s.watched || this.ledger.qualifies(s, st)))
+      .sort((a, b) => Number(b.watched) - Number(a.watched) || b.legitScore - a.legitScore)
+      .map((s) => s.wallet);
+  };
+
   start() {
-    const run = () =>
-      this.tick()
-        .catch((e) => console.warn('[scanner]', e.message))
-        .finally(() => (this.timer = setTimeout(run, SCAN.intervalMs)));
+    const chains = new Set(MEME_CHAINS.map((c) => c.id));
+    if (chains.has('solana')) {
+      this.solana = new SolanaFeed(this.tracker, this.solanaWallets);
+      this.solana.start();
+    }
+    for (const cfg of EVM_CHAINS) {
+      if (!chains.has(cfg.id)) continue;
+      const f = new EvmFeed(cfg, this.tracker);
+      f.start();
+      this.evm.push(f);
+    }
+    const cycle = async () => {
+      LiveScanner.stats.cycles++;
+      LiveScanner.stats.lastCycleAt = Date.now();
+      await this.tracker.refresh().catch((e) => this.note(`pair stats: ${(e as Error).message}`));
+      await this.enrichImages().catch((e) => this.note(`logos: ${(e as Error).message}`));
+      LiveScanner.stats.pairsSeen = this.tracker.stats.promoted;
+      LiveScanner.stats.feeds = {
+        tracker: this.tracker.stats,
+        solana: this.solana ? { ...this.solana.stats, helius: helius.heliusEnabled() ? { spentToday: helius.budget.spentToday, dailyCap: HELIUS.dailyCredits, availableNow: Math.round(helius.budget.available()) } : 'no HELIUS_API_KEY' } : undefined,
+        ...Object.fromEntries(this.evm.map((f, i) => [EVM_CHAINS.filter((c) => chains.has(c.id))[i].id, f.stats])),
+      };
+    };
+    const loop = () => void cycle().finally(() => setTimeout(loop, 20_000).unref());
+    loop();
     void this.refreshSeeds();
-    void LiveScanner.probe();
     setInterval(() => void this.refreshSeeds(), 6 * 3_600_000).unref();
     setInterval(() => this.ledger.prune(), 3_600_000).unref();
-    run();
   }
 
-  stop() {
-    if (this.timer) clearTimeout(this.timer);
-  }
-
-  private async tick() {
-    this.cycle++;
-    LiveScanner.stats.cycles = this.cycle;
-    LiveScanner.stats.lastCycleAt = Date.now();
-    const withTrending = this.cycle % 5 === 1;
-    await Promise.all(
-      MEME_CHAINS.map(async (c) => {
-        try {
-          const pairs = (await gt.newPools(c.gt)).map((p) => toPair(p, c, false));
-          if (withTrending) pairs.push(...(await gt.trendingPools(c.gt, '1h')).map((p) => toPair(p, c, true)));
-          this.ledger.upsertPools(pairs);
-          LiveScanner.stats.pairsSeen += pairs.length;
-        } catch (e) {
-          this.note(`${c.id} new pairs: ${(e as Error).message}`);
-        }
-      }),
-    );
-
-    await this.enrichImages().catch((e) => console.warn(`[scanner] images: ${(e as Error).message}`));
-
-    // Poll trades on the most active recent pools, favouring ones we haven't looked at for a while.
-    const now = Date.now();
-    const candidates = this.ledger.pools({ sinceCreated: now - 48 * 3_600_000, limit: 500 }).filter((p) => p.trending || now - p.createdAt < 24 * 3_600_000);
-    const ranked = candidates
-      .map((p) => {
-        const since = Math.min(30, (now - (this.lastPolled.get(p.id) ?? 0)) / 60_000);
-        // Brand-new pairs jump the queue so their opening (sniper) trades are captured before they scroll out of the 300-trade window.
-        const launchBoost = now - p.createdAt < 15 * 60_000 ? 100 : 1;
-        return { p, prio: (Math.log1p(p.volume.h1 + p.volume.m5 * 6) + 1) * since * launchBoost };
-      })
-      .sort((a, b) => b.prio - a.prio)
-      .slice(0, SCAN.poolsPerCycle);
-
-    for (const { p } of ranked) {
-      const chain = MEME_CHAINS.find((c) => c.id === p.chain)!;
-      try {
-        const trades = await gt.poolTrades(chain.gt, p.address, p.baseAddress);
-        this.lastPolled.set(p.id, Date.now());
-        const fresh = this.ledger.insertTrades(trades.map((t) => ({ ...t, chain: p.chain, pool: p.address })));
-        LiveScanner.stats.tradesSeen += fresh.length;
-        if (fresh.length) this.onTrades(p, fresh);
-      } catch (e) {
-        this.note(`trades ${p.chain}: ${(e as Error).message}`);
-      }
-    }
-  }
-
-  /**
-   * Token logos come from DexScreener first (creators upload them to their token profile), then
-   * GeckoTerminal. Newly published profiles are picked up every cycle; recent pairs are re-checked
-   * every 20 minutes until a DexScreener logo turns up.
-   */
+  /** Creator logos from DexScreener profiles for shown pairs that still have none. */
   private async enrichImages() {
     const now = Date.now();
     const dsToOurs = new Map(MEME_CHAINS.map((c) => [ds.dsChain(c.id), c.id]));
@@ -145,7 +112,7 @@ export class LiveScanner {
     }
     const missing = this.ledger
       .pools({ sinceCreated: now - 24 * 3_600_000, limit: 500 })
-      .filter((p) => !this.ledger.hasTokenImage(p.chain, p.baseAddress) && now - (this.imageTried.get(p.id) ?? 0) > 20 * 60_000);
+      .filter((p) => !p.imageUrl && !this.ledger.hasTokenImage(p.chain, p.baseAddress) && now - (this.imageTried.get(p.id) ?? 0) > 20 * 60_000);
     const byChain = new Map<string, string[]>();
     for (const p of missing) {
       this.imageTried.set(p.id, now);
@@ -153,9 +120,8 @@ export class LiveScanner {
     }
     let calls = 0;
     for (const [chain, tokens] of byChain) {
-      for (let i = 0; i < tokens.length && calls < 4; i += 30, calls++) {
-        const found = await ds.tokenImages(chain, tokens.slice(i, i + 30));
-        for (const [token, url] of found) this.ledger.setTokenImage(chain, token, url);
+      for (let i = 0; i < tokens.length && calls < 3; i += 30, calls++) {
+        for (const [token, url] of await ds.tokenImages(chain, tokens.slice(i, i + 30))) this.ledger.setTokenImage(chain, token, url);
       }
     }
     if (this.imageTried.size > 20_000) this.imageTried.clear();
@@ -180,7 +146,7 @@ export class LiveScanner {
         this.ledger.replaceSeeds('hyperliquid', seeds);
         console.log(`[seeds] hyperliquid leaderboard: ${seeds.length} wallets`);
       } catch (e) {
-        console.warn(`[seeds] hyperliquid: ${(e as Error).message}`);
+        this.note(`hyperliquid leaderboard: ${(e as Error).message}`);
       }
     }
     if (dune.duneEnabled()) {
@@ -204,7 +170,7 @@ export class LiveScanner {
         this.ledger.replaceSeeds('dune', seeds);
         console.log(`[seeds] dune: ${seeds.length} wallets`);
       } catch (e) {
-        console.warn(`[seeds] dune: ${(e as Error).message}`);
+        this.note(`dune: ${(e as Error).message}`);
       }
     }
   }

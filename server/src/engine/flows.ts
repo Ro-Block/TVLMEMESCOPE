@@ -132,7 +132,10 @@ export async function warmFlows() {
   }
   const t0 = Date.now();
   let ok = 0;
-  for (const [, run] of steps) if ((await run().catch(() => null)) !== null) ok++;
+  for (const [, run] of steps) {
+    const v = await run().catch(() => null);
+    if (v !== null && !(Array.isArray(v) && v.length === 0)) ok++;
+  }
   console.log(`[flows] warm-up: ${ok}/${steps.length} source loads succeeded in ${((Date.now() - t0) / 1000).toFixed(0)}s`);
   for (const s of status.values()) if (!s.ok) console.warn(`[flows] ${s.name} failed: ${s.note}`);
 }
@@ -141,7 +144,8 @@ export async function warmFlows() {
 const pools = new Map<string, { liquidity: number; m5: number; h1: number; h6: number; h24: number; at: number }>();
 let poolTimer: NodeJS.Timeout | null = null;
 export function startPoolRotation(everyMs = 30_000) {
-  if (poolTimer || DATA_MODE === 'demo') return;
+  // Off unless GECKOTERMINAL_POOLS=on: live-window DEX volume then shows as unavailable.
+  if (poolTimer || DATA_MODE === 'demo' || process.env.GECKOTERMINAL_POOLS !== 'on') return;
   const list = FLOW_CHAINS.filter((c) => c.gt);
   let i = 0;
   const step = async () => {
@@ -221,7 +225,7 @@ async function liveFlows(window: FlowWindow): Promise<FlowsResponse> {
     }),
   );
   const shown = chains.filter((c) => c.tvl > 0 || (c.stablecoins ?? 0) > 0 || c.inflow + c.outflow > 0).sort((a, b) => b.tvl - a.tvl);
-  const sources = ['DefiLlama TVL', 'DefiLlama stablecoins', 'Wormholescan routes', 'GeckoTerminal pools'].map((n) => status.get(n) ?? { name: n, ok: false, updatedAt: null, note: 'not loaded yet' });
+  const sources = ['DefiLlama TVL', 'DefiLlama stablecoins', 'Wormholescan routes', ...(process.env.GECKOTERMINAL_POOLS === 'on' ? ['GeckoTerminal pools'] : [])].map((n) => status.get(n) ?? { name: n, ok: false, updatedAt: null, note: 'not loaded yet' });
   return {
     window,
     chains: shown,

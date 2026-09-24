@@ -75,7 +75,7 @@ export function FlowsPage() {
         <div className="card kpi">
           <div className="label">DEX volume, {WINDOW_LABEL[win]}</div>
           <div className="value">{data.totals.dexVolume ? usd(data.totals.dexVolume) : '—'}</div>
-          <div className="sub">{live ? `top pools · ${via('GeckoTerminal')}` : `all DEXs · ${via('DefiLlama')}`}</div>
+          <div className="sub">{live ? (data.totals.dexVolume ? `top pools · ${via('GeckoTerminal')}` : 'trend windows only') : `all DEXs · ${via('DefiLlama')}`}</div>
         </div>
         <div className="card kpi">
           <div className="label">Bridged, {WINDOW_LABEL[data.routesWindow]}</div>
