@@ -12,6 +12,9 @@ const CX = W / 2;
 const CY = H / 2 + 4;
 const SUN_R = 44;
 const COMET_MS = 4_500;
+/** Events younger than this replay on page load and pulse again every PULSE_MS. */
+const RECENT_MS = 60 * 60_000;
+const PULSE_MS = 45_000;
 const NOVA_MS = 4_200;
 
 /** Orbits are TVL classes, so where a planet sits tells you its size class at a glance. */
@@ -221,7 +224,7 @@ export function LiquidityMap({ chains, flows, windowLabel, selected, onSelect }:
       // Super comets fly above the regular traffic.
       effects.current = effects.current.filter((fx) => now - fx.start < (fx.e.kind === 'super-comet' ? COMET_MS * 1.35 : NOVA_MS));
       for (const fx of effects.current) {
-        if (fx.e.kind !== 'super-comet') continue;
+        if (fx.e.kind !== 'super-comet' || now < fx.start) continue;
         const a = at.get(fx.e.chain);
         const b = at.get(fx.e.to!);
         if (!a || !b) continue;
@@ -231,7 +234,7 @@ export function LiquidityMap({ chains, flows, windowLabel, selected, onSelect }:
       for (const id of order) if (at.get(id)!.depth >= 0) paint(id);
 
       for (const fx of effects.current) {
-        if (fx.e.kind !== 'supernova') continue;
+        if (fx.e.kind !== 'supernova' || now < fx.start) continue;
         const q = at.get(fx.e.chain);
         const p = planets.get(fx.e.chain);
         if (q && p) drawSupernova(ctx, q.x, q.y, p.r * q.scale, (now - fx.start) / NOVA_MS, hex(ECO_HEX[p.c.ecosystem]), fx.seed);
@@ -250,18 +253,34 @@ export function LiquidityMap({ chains, flows, windowLabel, selected, onSelect }:
     };
   }, [planets, visible, maxFlow]);
 
+  // New events play at once; ones already under way when the page opens play one after another.
   useEffect(() => {
-    if (!seenEvents.current) {
-      seenEvents.current = new Set(events.map((e) => e.id));
-      return;
-    }
-    for (const e of events) {
+    const play = (e: LiveFlowEvent, delay = 0, withBanner = true) => {
+      if (!planets.has(e.chain) || (e.kind === 'super-comet' && !planets.has(e.to ?? ''))) return;
+      effects.current.push({ e, start: performance.now() + delay, seed: hashStr(e.id) });
+      if (withBanner) setTimeout(() => setBanner(e), delay);
+    };
+    const first = !seenEvents.current;
+    seenEvents.current ??= new Set();
+    let delay = first ? 1_500 : 0;
+    for (const e of [...events].reverse()) {
       if (seenEvents.current.has(e.id)) continue;
       seenEvents.current.add(e.id);
-      if (!planets.has(e.chain) || (e.kind === 'super-comet' && !planets.has(e.to ?? ''))) continue;
-      effects.current.push({ e, start: performance.now(), seed: hashStr(e.id) });
-      setBanner(e);
+      if (Date.now() - e.ts > RECENT_MS) continue;
+      play(e, delay);
+      if (first) delay += 3_500;
     }
+  }, [events, planets]);
+  // Events from the last hour keep pulsing now and then, so the map shows what is going on right now.
+  useEffect(() => {
+    const id = setInterval(() => {
+      const live = events.filter((e) => Date.now() - e.ts < RECENT_MS);
+      if (!live.length || effects.current.length) return;
+      const e = live[Math.floor(Math.random() * live.length)];
+      if (!planets.has(e.chain) || (e.kind === 'super-comet' && !planets.has(e.to ?? ''))) return;
+      effects.current.push({ e, start: performance.now(), seed: hashStr(e.id + Date.now()) });
+    }, PULSE_MS);
+    return () => clearInterval(id);
   }, [events, planets]);
   useEffect(() => {
     if (!banner) return;
@@ -394,7 +413,7 @@ export function EcosystemLegend({ present }: { present: Set<string> }) {
 /** The latest super comets and supernovas, newest first. */
 export function FlowEventLog() {
   const events = useFlowEvents();
-  if (!events.length) return <p className="note" style={{ margin: 0 }}>Super comets (single transfers of $10M+) and supernovas (a chain losing $50M+ at once, or 3× its usual daily outflow) appear here and on the map as they happen.</p>;
+  if (!events.length) return <p className="note" style={{ margin: 0 }}>Super comets (a route moving far more than its usual hour, or $10M+) and supernovas (a chain losing far more than usual, or $50M+) appear here and on the map as they happen.</p>;
   return (
     <div className="event-log">
       <div className="event-log-head">Live events</div>
@@ -434,8 +453,8 @@ export function SpaceKey({ live = false }: { live?: boolean }) {
         </svg>
         Comet = net flow, flying to the receiver
       </span>
-      <span>☄ Super comet = $10M+ on one route within an hour</span>
-      <span>✹ Supernova = big liquidity exodus</span>
+      <span>☄ Super comet = a route moving 3× its usual hour (or $10M+)</span>
+      <span>✹ Supernova = a chain losing liquidity 3× faster than usual</span>
       <span>
         <svg width="16" height="16" aria-hidden><circle cx="8" cy="8" r="6" fill="none" stroke="var(--flow-in)" strokeWidth="2" /></svg>
         Ring: net {live ? 'bridged' : 'liquidity'} in

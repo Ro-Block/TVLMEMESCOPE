@@ -1,10 +1,84 @@
 import type { FlowEvent } from '../../../shared/types.ts';
 import { FLOW_CHAINS, FLOW_EVENTS } from '../config.ts';
 import { gauss, mulberry32 } from '../rand.ts';
-import { getFlows } from './flows.ts';
+import { getFlows, routeHours } from './flows.ts';
 
 const usd = (n: number) => (n >= 1e9 ? `$${(n / 1e9).toFixed(2)}B` : `$${(n / 1e6).toFixed(1)}M`);
 const nameOf = (id: string) => FLOW_CHAINS.find((c) => c.id === id)?.name ?? id;
+
+export interface RouteHour {
+  from: number;
+  src: string;
+  dst: string;
+  usd: number;
+}
+
+export interface Spike {
+  kind: 'super-comet' | 'supernova';
+  hour: number;
+  chain: string;
+  to?: string;
+  usd: number;
+  /** How many times the usual hour this is; null when the usual hour is zero. */
+  ratio: number | null;
+}
+
+const median = (xs: number[]) => {
+  if (!xs.length) return 0;
+  const s = [...xs].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+};
+
+/**
+ * Finds hours that stand out against the route's (or chain's) own last day, so the map reacts to
+ * real, unusual movements instead of only the rare $10M+ hour:
+ * - super comet: a route's hour is ≥ absolute threshold, or ≥ min and ≥ spike× its median hour
+ * - supernova: a chain's hourly net outflow is ≥ absolute threshold, or ≥ min and ≥ spike× its median |net| hour
+ * Checks the latest `recent` hours; at most 3 comets and 2 novas per hour, biggest first.
+ */
+export function detectSpikes(rows: RouteHour[], t = FLOW_EVENTS, recent = 2): Spike[] {
+  const hours = [...new Set(rows.map((r) => r.from))].sort((a, b) => a - b);
+  if (hours.length < 2) return [];
+  const route = new Map<string, Map<number, number>>();
+  const net = new Map<string, Map<number, number>>();
+  const add = (m: Map<string, Map<number, number>>, k: string, h: number, v: number) => {
+    const row = m.get(k) ?? new Map<number, number>();
+    row.set(h, (row.get(h) ?? 0) + v);
+    m.set(k, row);
+  };
+  for (const r of rows) {
+    add(route, `${r.src}>${r.dst}`, r.from, r.usd);
+    add(net, r.dst, r.from, r.usd);
+    add(net, r.src, r.from, -r.usd);
+  }
+  const out: Spike[] = [];
+  for (const h of hours.slice(-recent)) {
+    const past = hours.filter((x) => x < h).slice(-24);
+    if (!past.length) continue;
+    const comets: Spike[] = [];
+    for (const [k, byHour] of route) {
+      const v = byHour.get(h) ?? 0;
+      const usual = median(past.map((x) => byHour.get(x) ?? 0));
+      if (v >= t.superCometUsd || (v >= t.superCometMinUsd && v >= t.supernovaSpike * usual)) {
+        const [src, dst] = k.split('>');
+        comets.push({ kind: 'super-comet', hour: h, chain: src, to: dst, usd: v, ratio: usual > 0 ? v / usual : null });
+      }
+    }
+    const novas: Spike[] = [];
+    for (const [c, byHour] of net) {
+      const loss = -(byHour.get(h) ?? 0);
+      const usual = median(past.map((x) => Math.abs(byHour.get(x) ?? 0)));
+      if (loss >= t.supernovaUsd || (loss >= t.supernovaMinUsd && loss >= t.supernovaSpike * usual)) {
+        novas.push({ kind: 'supernova', hour: h, chain: c, usd: loss, ratio: usual > 0 ? loss / usual : null });
+      }
+    }
+    out.push(...comets.sort((a, b) => b.usd - a.usd).slice(0, 3), ...novas.sort((a, b) => b.usd - a.usd).slice(0, 2));
+  }
+  return out;
+}
+
+const times = (r: number | null) => (r === null ? 'a route that is usually quiet' : `${r >= 10 ? Math.round(r) : r.toFixed(1)}× its usual hour`);
 
 /** Big single bridge transfers (super comets) and liquidity exoduses (supernovas) for the solar map. */
 export class FlowEventEngine {
@@ -37,35 +111,25 @@ export class FlowEventEngine {
 
   /**
    * Live rules, on data that is free and already cached by the flow engine:
-   * - super comet: $10M+ moved on one route within the latest hour (Wormholescan chain pairs)
-   * - supernova: a chain's stablecoins fell by $50M+ over the last day (DefiLlama), or it bridged
-   *   out $50M+ net within the latest hour
+   * - hourly spikes on Wormholescan chain pairs (see detectSpikes)
+   * - supernova: a chain's stablecoins fell by $50M+, or 3%+ (and $5M+), over the last day (DefiLlama)
    */
   private async pollLive() {
-    const hour = Math.floor(Date.now() / 3_600_000) * 3_600_000;
     const day = Math.floor(Date.now() / 86_400_000) * 86_400_000;
-    const h = await getFlows('1h');
-    for (const f of h.flows) {
-      if (f.usd < FLOW_EVENTS.superCometUsd) continue;
-      this.emit({
-        id: `c:${f.from}>${f.to}:${hour}`,
-        ts: Date.now(),
-        kind: 'super-comet',
-        chain: f.from,
-        to: f.to,
-        usd: f.usd,
-        message: `☄ ${usd(f.usd)} moved ${nameOf(f.from)} → ${nameOf(f.to)} in the last hour`,
-      });
-    }
-    for (const c of h.chains) {
-      if (c.inflow - c.outflow <= -FLOW_EVENTS.supernovaUsd) {
-        this.emit({ id: `w:${c.id}:${hour}`, ts: Date.now(), kind: 'supernova', chain: c.id, usd: c.outflow - c.inflow, message: `✹ ${usd(c.outflow - c.inflow)} net bridged out of ${c.name} in the last hour` });
+    for (const s of detectSpikes(await routeHours())) {
+      const when = s.hour >= Date.now() - 3_600_000 ? 'this hour' : 'in the last hour';
+      if (s.kind === 'super-comet') {
+        this.emit({ id: `c:${s.chain}>${s.to}:${s.hour}`, ts: Date.now(), kind: 'super-comet', chain: s.chain, to: s.to, usd: s.usd, bridge: 'Wormhole', message: `☄ ${usd(s.usd)} moved ${nameOf(s.chain)} → ${nameOf(s.to!)} ${when}, ${times(s.ratio)}` });
+      } else {
+        this.emit({ id: `w:${s.chain}:${s.hour}`, ts: Date.now(), kind: 'supernova', chain: s.chain, usd: s.usd, message: `✹ ${usd(s.usd)} net bridged out of ${nameOf(s.chain)} ${when}, ${times(s.ratio)}` });
       }
     }
     const d = await getFlows('1d');
     for (const c of d.chains) {
-      if (c.stableChange !== null && c.stableChange <= -FLOW_EVENTS.supernovaUsd) {
-        this.emit({ id: `s:${c.id}:${day}`, ts: Date.now(), kind: 'supernova', chain: c.id, usd: -c.stableChange, message: `✹ Stablecoins on ${c.name} fell ${usd(-c.stableChange)} in 24h` });
+      const drop = c.stableChange !== null ? -c.stableChange : 0;
+      const share = c.stablecoins ? drop / (c.stablecoins + drop) : 0;
+      if (drop >= FLOW_EVENTS.supernovaUsd || (drop >= 5e6 && share >= 0.03)) {
+        this.emit({ id: `s:${c.id}:${day}`, ts: Date.now(), kind: 'supernova', chain: c.id, usd: drop, message: `✹ Stablecoins on ${c.name} fell ${usd(drop)} (${(share * 100).toFixed(1)}%) in 24h` });
       }
     }
     if (this.seen.size > 5_000) this.seen.clear();

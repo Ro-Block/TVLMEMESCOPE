@@ -117,6 +117,16 @@ const whHourly = swr(2 * 60_000, () => track('Wormholescan routes', wh.hourly(26
 const whDaily = swr(15 * 60_000, () => wh.daily(45));
 
 /** Loads every source once at startup, one after another, so the first page view has data. */
+/** Latest hourly Wormhole pair buckets keyed by our chain ids (live mode only), for the map's live events. */
+export async function routeHours(): Promise<{ from: number; src: string; dst: string; usd: number }[]> {
+  const rows = (await whHourly('all', 20_000)) ?? [];
+  return rows.flatMap((b) => {
+    const src = byWh.get(b.src);
+    const dst = byWh.get(b.dst);
+    return src && dst && src !== dst ? [{ from: b.from, src, dst, usd: b.usd }] : [];
+  });
+}
+
 export async function warmFlows() {
   if (DATA_MODE === 'demo') return;
   const steps: [string, () => Promise<unknown>][] = [

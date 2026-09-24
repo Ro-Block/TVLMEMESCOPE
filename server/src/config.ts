@@ -92,6 +92,10 @@ export const FLOW_EVENTS = {
   supernovaUsd: Number(env.SUPERNOVA_USD ?? 50_000_000),
   /** A day whose outflow is this many times the chain's recent median also counts as a supernova. */
   supernovaSpike: Number(env.SUPERNOVA_SPIKE ?? 3),
+  /** Smallest hourly route volume that can be a super comet when it is `supernovaSpike`× the route's usual hour. */
+  superCometMinUsd: Number(env.SUPER_COMET_MIN_USD ?? 1_000_000),
+  /** Smallest hourly net outflow that can be a supernova when it is `supernovaSpike`× the chain's usual hour. */
+  supernovaMinUsd: Number(env.SUPERNOVA_MIN_USD ?? 2_000_000),
 };
 
 /** Solana trades via Helius (free plan: 1M credits/month, 10 req/s). Key lives only in .env. */
