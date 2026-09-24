@@ -1,8 +1,9 @@
 import { TREND_WINDOWS, type ChainDetail, type ChainNode, type DataSource, type Flow, type FlowWindow, type FlowsResponse, type SourceStatus } from '../../../shared/types.ts';
 import { DATA_MODE, FLOW_CHAINS, type ChainMeta } from '../config.ts';
-import { swr } from '../http.ts';
+import { sourceHealth, swr } from '../http.ts';
 import * as llama from '../sources/defillama.ts';
 import * as gt from '../sources/geckoterminal.ts';
+import { l2beatTvs, tvsFor } from '../sources/l2beat.ts';
 import * as wh from '../sources/wormhole.ts';
 import { gauss, hashSeed, mulberry32 } from '../rand.ts';
 
@@ -122,6 +123,7 @@ export async function warmFlows() {
     ['TVL', () => tvlNow('all', 30_000)],
     ['stablecoins', () => stablesNow('all', 30_000)],
     ['routes', () => whHourly('all', 45_000)],
+    ['L2BEAT', () => l2beatTvs('all', 30_000)],
     ['daily routes', () => whDaily('all', 45_000)],
   ];
   for (const c of FLOW_CHAINS) {
@@ -174,6 +176,7 @@ const settle = async <T,>(p: Promise<T | null>): Promise<T | null> => p.catch(()
 async function liveFlows(window: FlowWindow): Promise<FlowsResponse> {
   const trend = isTrend(window);
   // Core sources get a few seconds on a cold start; everything else uses what's cached so far.
+  const tvs = await settle(l2beatTvs('all'));
   const [tvls, stables, hourly, daily] = await Promise.all([settle(tvlNow('all', 8_000)), settle(stablesNow('all', 8_000)), settle(whHourly('all', 8_000)), trend && window !== '1d' ? settle(whDaily('all', 8_000)) : Promise.resolve(null)]);
   if (!tvls && !stables && !hourly) {
     const why = [...status.values()].filter((s) => !s.ok).map((s) => `${s.name}: ${s.note}`).join('; ');
@@ -221,11 +224,14 @@ async function liveFlows(window: FlowWindow): Promise<FlowsResponse> {
         stableChange,
         dexVolume,
         poolLiquidity: pools.get(m.id)?.liquidity ?? null,
+        l2beatTvs: tvsFor(tvs, m.id),
       };
     }),
   );
   const shown = chains.filter((c) => c.tvl > 0 || (c.stablecoins ?? 0) > 0 || c.inflow + c.outflow > 0).sort((a, b) => b.tvl - a.tvl);
-  const sources = ['DefiLlama TVL', 'DefiLlama stablecoins', 'Wormholescan routes', ...(process.env.GECKOTERMINAL_POOLS === 'on' ? ['GeckoTerminal pools'] : [])].map((n) => status.get(n) ?? { name: n, ok: false, updatedAt: null, note: 'not loaded yet' });
+  if (tvs) status.set('L2BEAT value secured', { name: 'L2BEAT value secured', ok: true, updatedAt: Date.now(), note: `${tvs.size} projects` });
+  else if (sourceHealth.l2beat && !sourceHealth.l2beat.ok) status.set('L2BEAT value secured', { name: 'L2BEAT value secured', ok: false, updatedAt: null, note: sourceHealth.l2beat.lastError });
+  const sources = ['DefiLlama TVL', 'DefiLlama stablecoins', 'Wormholescan routes', 'L2BEAT value secured', ...(process.env.GECKOTERMINAL_POOLS === 'on' ? ['GeckoTerminal pools'] : [])].map((n) => status.get(n) ?? { name: n, ok: false, updatedAt: null, note: 'not loaded yet' });
   return {
     window,
     chains: shown,
@@ -235,6 +241,7 @@ async function liveFlows(window: FlowWindow): Promise<FlowsResponse> {
       bridged: shown.reduce((s, c) => s + c.inflow, 0),
       stablecoins: shown.reduce((s, c) => s + (c.stablecoins ?? 0), 0),
       dexVolume: shown.reduce((s, c) => s + (c.dexVolume ?? 0), 0),
+      l2beatTvs: shown.reduce((s, c) => s + (c.l2beatTvs ?? 0), 0),
     },
     routing: 'observed',
     routesWindow: window === '5m' ? '1h' : window,
@@ -300,6 +307,8 @@ function demoFlows(window: FlowWindow): FlowsResponse {
       id: s.meta.id, name: s.meta.name, ticker: s.meta.ticker, ecosystem: s.meta.ecosystem, tvl, tvlChange7d: tvl / weekAgo - 1,
       inflow, outflow, net: stableChange ?? inflow - outflow, stablecoins: tvl * (0.18 + rng() * 0.15), stableChange,
       dexVolume: tvl * 0.03 * (window === '5m' ? 1 / 288 : hours / 24) * (0.6 + rng() * 0.8), poolLiquidity: tvl * (0.03 + rng() * 0.04),
+      // L2BEAT counts canonical + external + native assets, so value secured runs well above DeFi TVL.
+      l2beatTvs: ['arbitrum', 'base', 'optimism', 'lighter', 'robinhood'].includes(s.meta.id) ? tvl * (2.2 + rng()) : null,
     };
   }).sort((a, b) => b.tvl - a.tvl);
   return {
@@ -311,6 +320,7 @@ function demoFlows(window: FlowWindow): FlowsResponse {
       bridged: chains.reduce((s, c) => s + c.inflow, 0),
       stablecoins: chains.reduce((s, c) => s + (c.stablecoins ?? 0), 0),
       dexVolume: chains.reduce((s, c) => s + (c.dexVolume ?? 0), 0),
+      l2beatTvs: chains.reduce((s, c) => s + (c.l2beatTvs ?? 0), 0),
     },
     routing: 'simulated',
     routesWindow: window,

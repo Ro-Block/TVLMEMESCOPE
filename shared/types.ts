@@ -33,6 +33,8 @@ export interface ChainNode {
   dexVolume: number | null;
   /** Liquidity in the chain's most active DEX pools. */
   poolLiquidity: number | null;
+  /** L2BEAT Total Value Secured (L2s only). */
+  l2beatTvs?: number | null;
 }
 
 export interface SourceStatus {
@@ -52,7 +54,7 @@ export interface FlowsResponse {
   window: FlowWindow;
   chains: ChainNode[];
   flows: Flow[];
-  totals: { tvl: number; bridged: number; stablecoins: number; dexVolume: number };
+  totals: { tvl: number; bridged: number; stablecoins: number; dexVolume: number; l2beatTvs?: number };
   /** Observed = real chain-pair volumes (Wormholescan). */
   routing: 'observed' | 'simulated';
   /** Window the routes cover (5m uses the latest hour: route data is hourly). */

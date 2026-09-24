@@ -26,7 +26,7 @@ Snipers are kept out of smart money by default: a wallet whose median entry over
 
 ```bash
 npm install
-cp .env.example .env        # optional; read automatically on start
+cp .env.example .env        # then paste your free Helius key into HELIUS_API_KEY
 npm run dev                 # API on :8787, UI on http://localhost:5173
 ```
 
@@ -56,8 +56,14 @@ Everything below is free. The flows page refreshes every 30 seconds, but the ser
 | Stablecoin supply per chain (net liquidity for 1d–7d) | DefiLlama `stablecoins.llama.fi/stablecoinchains`, `/stablecoincharts/{chain}` | 5 min / 30 min |
 | DEX volume per chain (1d–7d) | DefiLlama `/overview/dexs/{chain}` | 15 min |
 | Chain-to-chain routes (comets, bridged in/out) | Wormholescan `api.wormholescan.io/api/v1/x-chain-activity/tops` (hourly and daily buckets per chain pair, all Wormhole apps) | 2 min / 15 min |
-| Pool liquidity + 5m / 1h / 6h DEX volume | GeckoTerminal `/networks/{net}/pools` (top pools, one chain every 30 s) | ~6 min per chain |
-| New pairs, trades | GeckoTerminal `new_pools`, `trending_pools`, `pools/{pool}/trades` | 60 s |
+| L2 value secured | L2BEAT `l2beat.com/api/scaling/summary` (Total Value Secured, shown in tooltips, the chain table and drawer) | 15 min |
+| Pool liquidity + 5m / 1h / 6h DEX volume (optional) | GeckoTerminal top pools, only with `GECKOTERMINAL_POOLS=on` | ~6 min per chain |
+| Solana launches | PumpPortal free websocket (`subscribeNewToken`, `subscribeMigration`): every pump.fun / letsbonk token as it's created, with the creator's first buy | live |
+| Solana trades (wallets) | Helius: `getSignaturesForAddress` (10 credits) + Enhanced Transactions parse, 100 txs per call (100 credits), capped by `HELIUS_DAILY_CREDITS` | 15 s |
+| Base / BNB / HyperEVM / Robinhood pools + trades | Public RPC via viem: `PairCreated` / `PoolCreated` from any Uniswap-style factory, Uniswap v4 `Initialize` / `Swap` on the PoolManager (Base, Robinhood), `Swap` events on tracked pools; trader = `tx.from` | 15 s |
+| Pair stats (price, liquidity, volume, txns) | DexScreener `tokens/v1/{chain}/{tokens}` (30 per call, 300/min) | 45 s–2 min |
+| Native prices (SOL, ETH, BNB, HYPE) | DefiLlama `coins.llama.fi/prices/current` | 60 s |
+| Wallet names (optional) | Arkham `api.arkm.com/intelligence/address/{address}` with `ARKHAM_API_KEY`, cached a week per wallet | background |
 | Token logos | DexScreener `token-profiles/latest/v1` and `tokens/v1/{chain}/{addresses}`, then GeckoTerminal, then DexScreener's image CDN | 60 s |
 | HyperEVM whales | Hyperliquid leaderboard | 6 h |
 | 60-day backfill (optional) | Dune: save `sql/top_meme_traders_60d.sql`, set `DUNE_API_KEY` + `DUNE_QUERY_ID` | cached result |
@@ -67,6 +73,14 @@ Everything below is free. The flows page refreshes every 30 seconds, but the ser
 **What the routes cover.** Comets are observed volume per chain pair on Wormhole: Portal, NTT, CCTP via Wormhole, Mayan and others. That is real data but not every bridge. Chains Wormhole doesn't connect (Lighter, Robinhood) show TVL and stablecoins without comets. DefiLlama's own bridge endpoints now require a paid Pro key, so they aren't used.
 
 **Robinhood Chain / HyperEVM network ids.** These default to `robinhood` and `hyperevm` on GeckoTerminal. At startup the scanner warns if a configured id isn't listed; override it with `GT_NETWORK_ROBINHOOD=…` / `GT_NETWORK_HYPEREVM=…`.
+
+**How new tokens reach the memescope.** Every launch (PumpPortal) and every new pool (chain events) starts as a *candidate*. It's shown once DexScreener reports real activity: `PROMOTE_MIN_TXNS_H1` trades, `PROMOTE_MIN_VOLUME_H1` volume, or `PROMOTE_MIN_LIQUIDITY` liquidity. A smart or watched wallet buying it also promotes it straight away. Trades seen before promotion are kept and replayed, so sniper detection still sees the opening seconds.
+
+**Helius budget.** The free plan is 1M credits a month. The app spends at most `HELIUS_DAILY_CREDITS` a day (30,000 by default), spread over the day, on three things in this order: backfilling the opening trades of promoted tokens, checking watched and smart Solana wallets for new buys (every 10 min), and following the busiest promoted tokens. That's roughly 25–30k parsed Solana trades a day. The Data panel shows the credits used today.
+
+**Keys stay on your PC.** `HELIUS_API_KEY`, `ARKHAM_API_KEY` and any other keys go in `.env`, which is in `.gitignore` and never committed or pushed.
+
+**Not covered yet.** Tokens still on four.meme's bonding curve (BNB) trade on four.meme's own contract, so they only show up once they move to a PancakeSwap pool. The same goes for Solana launchpads other than pump.fun and letsbonk, unless a tracked wallet trades them.
 
 ## How trader ROI and the legit score work
 

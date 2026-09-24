@@ -67,6 +67,13 @@ export function FlowsPage() {
           <div className="value">{usd(data.totals.tvl)}</div>
           <div className="sub">{data.chains.length} chains · {via('DefiLlama')}</div>
         </div>
+        {!!data.totals.l2beatTvs && (
+          <div className="card kpi">
+            <div className="label">Value secured on L2s</div>
+            <div className="value">{usd(data.totals.l2beatTvs)}</div>
+            <div className="sub">total value secured · {via('L2BEAT')}</div>
+          </div>
+        )}
         <div className="card kpi">
           <div className="label">Stablecoins on these chains</div>
           <div className="value">{usd(data.totals.stablecoins)}</div>
@@ -140,6 +147,7 @@ export function FlowsPage() {
                     <th>Chain</th>
                     <th className="num">TVL</th>
                     <th className="num">7d</th>
+                    <th className="num" title="L2BEAT Total Value Secured (L2s)">L2BEAT TVS</th>
                     <th className="num">Stables</th>
                     <th className="num">DEX vol</th>
                     <th className="num">Pool liq.</th>
@@ -158,6 +166,7 @@ export function FlowsPage() {
                       </td>
                       <td className="num">{usd(c.tvl)}</td>
                       <td className={`num ${c.tvlChange7d !== null && c.tvlChange7d >= 0 ? 'up' : 'down'}`}>{pct(c.tvlChange7d)}</td>
+                      <td className="num">{c.l2beatTvs ? usd(c.l2beatTvs) : '—'}</td>
                       <td className="num">{c.stablecoins !== null ? usd(c.stablecoins) : '—'}</td>
                       <td className="num">{c.dexVolume !== null ? usd(c.dexVolume) : '—'}</td>
                       <td className="num">{c.poolLiquidity !== null ? usd(c.poolLiquidity) : '—'}</td>
@@ -212,7 +221,8 @@ function ChainDrawer({ id, win, onClose }: { id: string; win: FlowWindow; onClos
         {data && (
           <div className="drawer-body">
             <div className="kpis" style={{ marginBottom: 0 }}>
-              <div className="card kpi"><div className="label">TVL</div><div className="value">{usd(data.chain.tvl)}</div><div className="sub">{pct(data.chain.tvlChange7d)} 7d</div></div>
+              <div className="card kpi"><div className="label">TVL</div><div className="value">{usd(data.chain.tvl)}</div><div className="sub">{pct(data.chain.tvlChange7d)} 7d · DefiLlama</div></div>
+              {!!data.chain.l2beatTvs && <div className="card kpi"><div className="label">Value secured</div><div className="value">{usd(data.chain.l2beatTvs)}</div><div className="sub">L2BEAT TVS</div></div>}
               <div className="card kpi"><div className="label">Stablecoins</div><div className="value">{data.chain.stablecoins !== null ? usd(data.chain.stablecoins) : '—'}</div><div className="sub">{data.chain.stableChange !== null ? `${signedUsd(data.chain.stableChange)} ${win}` : 'supply now'}</div></div>
               <div className="card kpi"><div className="label">DEX volume, {win}</div><div className="value">{data.chain.dexVolume !== null ? usd(data.chain.dexVolume) : '—'}</div><div className="sub">{data.chain.poolLiquidity !== null ? `${usd(data.chain.poolLiquidity)} in top pools` : ''}</div></div>
               <div className="card kpi"><div className="label">Bridged in / out</div><div className="value" style={{ fontSize: 18 }}>{usd(data.chain.inflow)} / {usd(data.chain.outflow)}</div><div className="sub">observed routes</div></div>

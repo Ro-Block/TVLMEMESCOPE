@@ -335,6 +335,7 @@ export function LiquidityMap({ chains, flows, windowLabel, selected, onSelect }:
                       ['Stablecoins', c.stablecoins !== null ? usd(c.stablecoins) : '—'],
                       [`DEX volume (${windowLabel})`, c.dexVolume !== null ? usd(c.dexVolume) : '—'],
                       ['Top-pool liquidity', c.poolLiquidity !== null ? usd(c.poolLiquidity) : '—'],
+                      ...(c.l2beatTvs ? [['Value secured (L2BEAT)', usd(c.l2beatTvs)] as [string, string]] : []),
                     ]}
                   />,
                 )
@@ -433,7 +434,7 @@ export function SpaceKey({ live = false }: { live?: boolean }) {
         </svg>
         Comet = net flow, flying to the receiver
       </span>
-      <span>☄ Super comet = one big bridge transfer</span>
+      <span>☄ Super comet = $10M+ on one route within an hour</span>
       <span>✹ Supernova = big liquidity exodus</span>
       <span>
         <svg width="16" height="16" aria-hidden><circle cx="8" cy="8" r="6" fill="none" stroke="var(--flow-in)" strokeWidth="2" /></svg>

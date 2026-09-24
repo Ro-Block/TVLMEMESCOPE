@@ -9,6 +9,7 @@ import { DemoMarket } from './engine/demo-sim.ts';
 import { FlowEventEngine } from './engine/flow-events.ts';
 import { flowsSource, getChainDetail, getFlows, parseWindow, startPoolRotation, warmFlows } from './engine/flows.ts';
 import { Ledger } from './engine/ledger.ts';
+import { WalletLabels } from './engine/labels.ts';
 import { LiveScanner, type TradeSink } from './engine/scanner.ts';
 import { SniperEngine } from './engine/snipers.ts';
 import { sourceHealth } from './http.ts';
@@ -30,6 +31,10 @@ const ledger = new Ledger(db, ROI_WINDOW_DAYS, getSettings);
 const alerts = new AlertEngine(db, ledger, getSettings);
 const snipers = new SniperEngine(db, ledger, alerts, getSettings);
 ledger.extraFlags = (chain, wallet) => (snipers.isSniper(chain, wallet) ? ['sniper'] : []);
+// Arkham names only for wallets that surface in stats (score ≥ 50 or watched), looked up in the background.
+const labels = new WalletLabels(db);
+labels.start();
+ledger.extraLabel = (wallet) => labels.get(wallet);
 const onTrades: TradeSink = (pair, fresh, now) => {
   alerts.onTrades(pair, fresh, now);
   snipers.onTrades(pair, fresh, now);

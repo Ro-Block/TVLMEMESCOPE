@@ -13,6 +13,7 @@ const FLAG_INFO: Record<string, string> = {
   'hl-perps-30d': 'Seeded from the Hyperliquid perps leaderboard (30d ROI)',
   manual: 'Added to your watchlist by hand',
   sniper: 'Usually buys within seconds of pair creation (see Sniper radar)',
+  arkham: 'Name from Arkham Intelligence',
 };
 const BAD = new Set(['bot-like', 'one-hit', 'sniper']);
 

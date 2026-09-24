@@ -19,6 +19,8 @@ export class Ledger {
   now: () => number = Date.now;
   /** Extra per-wallet flags from other engines (e.g. `sniper`). */
   extraFlags: (chain: string, wallet: string) => string[] = () => [];
+  /** Name from an outside source (Arkham), used when there's no watchlist label. */
+  extraLabel: (wallet: string) => string | undefined = () => undefined;
 
   constructor(
     private db: Db,
@@ -163,6 +165,14 @@ export class Ledger {
       const k = key(stats.chain, stats.wallet);
       const s: TraderStats = { ...stats, legitScore: score, flags, source: 'ledger', tier: 'none', watched: this.watch.has(k), label: this.watch.get(k)?.label };
       s.tier = tierFor(s, minLegit);
+      // Outside names only for wallets worth showing, so lookups aren't spent on noise.
+      if (!s.label && (s.legitScore >= 50 || s.watched)) {
+        const outside = this.extraLabel(stats.wallet);
+        if (outside) {
+          s.label = outside;
+          s.flags.push('arkham');
+        }
+      }
       out.set(k, s);
     }
 

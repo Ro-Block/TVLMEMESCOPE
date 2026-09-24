@@ -148,10 +148,11 @@ export function App() {
 function HealthButton({ health, error, onClick }: { health: Health | null; error: string | null; onClick: () => void }) {
   const failing = health ? Object.values(health.sources).filter((s) => !s.ok).length : 0;
   const down = !!error && !health;
-  const label = down ? 'API server not reachable' : !health ? 'Checking data…' : health.flows === 'demo' && health.dataMode !== 'demo' ? 'Live data unavailable' : failing ? `${failing} source${failing > 1 ? 's' : ''} failing` : 'Live data OK';
+  const simulated = health && (health.dataMode === 'demo' || (health.memescope === 'demo' && health.flows === 'demo'));
+  const label = down ? 'API server not reachable' : !health ? 'Checking data…' : simulated ? 'Simulated data' : health.flows === 'demo' && health.dataMode !== 'demo' ? 'Live data unavailable' : failing ? `${failing} source${failing > 1 ? 's' : ''} failing` : 'Live data OK';
   const bad = down || failing > 0 || (health?.flows === 'demo' && health.dataMode !== 'demo');
   return (
-    <button className={`health-btn ${bad ? 'bad' : health ? 'ok' : ''}`} onClick={onClick} title="Data source status">
+    <button className={`health-btn ${bad ? 'bad' : health && !simulated ? 'ok' : ''}`} onClick={onClick} title="Data source status">
       <i aria-hidden>●</i> {label}
     </button>
   );
@@ -187,6 +188,7 @@ function HealthDrawer({ health, error, onClose }: { health: Health | null; error
                   </div>
                 )}
                 <div className="note">Ledger: {health.ledger.trades.toLocaleString()} trades from {health.ledger.wallets.toLocaleString()} wallets on {health.ledger.pools.toLocaleString()} pairs.</div>
+                {health.scanner?.feeds && <FeedSummary feeds={health.scanner.feeds} />}
               </div>
               <div className="card">
                 <div className="table-wrap">
@@ -220,5 +222,31 @@ function HealthDrawer({ health, error, onClose }: { health: Health | null; error
         </div>
       </aside>
     </>
+  );
+}
+
+/** Per-feed progress: launches, promoted pairs, Helius credit use, how far each chain is indexed. */
+function FeedSummary({ feeds }: { feeds: Record<string, unknown> }) {
+  const f = feeds as {
+    tracker?: { candidates: number; promoted: number };
+    solana?: { launches: number; trades: number; parsedTxs: number; helius: { spentToday: number; dailyCap: number; availableNow: number } | string };
+    [chain: string]: unknown;
+  };
+  const evm = Object.entries(f).filter(([k]) => !['tracker', 'solana'].includes(k)) as [string, { head: number; pools: number; trades: number; errors: number }][];
+  return (
+    <div className="note" style={{ display: 'grid', gap: 2 }}>
+      {f.tracker && <div>New tokens: {f.tracker.candidates.toLocaleString()} being watched, {f.tracker.promoted.toLocaleString()} shown (had real activity).</div>}
+      {f.solana && (
+        <div>
+          Solana: {f.solana.launches.toLocaleString()} launches seen, {f.solana.trades.toLocaleString()} trades from {f.solana.parsedTxs.toLocaleString()} parsed transactions ·{' '}
+          {typeof f.solana.helius === 'string' ? <b>add HELIUS_API_KEY to .env for wallet trades</b> : `Helius ${f.solana.helius.spentToday.toLocaleString()} / ${f.solana.helius.dailyCap.toLocaleString()} credits today`}
+        </div>
+      )}
+      {evm.map(([chain, s]) => (
+        <div key={chain}>
+          {chain}: block {s.head ? s.head.toLocaleString() : '—'} · {s.pools} new pools tracked · {s.trades.toLocaleString()} trades{s.errors ? ` · ${s.errors} failed polls` : ''}
+        </div>
+      ))}
+    </div>
   );
 }
