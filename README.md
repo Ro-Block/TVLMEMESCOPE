@@ -1,6 +1,6 @@
 # TVL Memescope
 
-A cross-chain **liquidity rotation map** (L2Beat / DefiLlama style) combined with a **memescope** that ranks traders by 60-day ROI and alerts you when proven whale wallets buy new pairs.
+A cross-chain **liquidity rotation map**  combined with a **memescope** that ranks traders by 60-day ROI and alerts you when proven whale wallets buy new pairs.
 
 Chains covered: **Solana, Base, Robinhood Chain, BNB Chain and HyperEVM/Hyperliquid**, plus Ethereum, Arbitrum, OP, Tron, Avalanche, Polygon and Sui on the flow map.
 
