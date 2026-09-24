@@ -331,7 +331,10 @@ export function LiquidityMap({ chains, flows, windowLabel, selected, onSelect }:
                       ['7d change', pct(c.tvlChange7d)],
                       [`In (${windowLabel})`, usd(c.inflow)],
                       [`Out (${windowLabel})`, usd(c.outflow)],
-                      ['Net', signedUsd(c.net)],
+                      ['Net liquidity', signedUsd(c.net)],
+                      ['Stablecoins', c.stablecoins !== null ? usd(c.stablecoins) : '—'],
+                      [`DEX volume (${windowLabel})`, c.dexVolume !== null ? usd(c.dexVolume) : '—'],
+                      ['Top-pool liquidity', c.poolLiquidity !== null ? usd(c.poolLiquidity) : '—'],
                     ]}
                   />,
                 )
@@ -353,6 +356,11 @@ export function LiquidityMap({ chains, flows, windowLabel, selected, onSelect }:
               <text y={r + halo + 31} textAnchor="middle" className="planet-net">
                 {c.net >= 0 ? '▲' : '▼'} {signedUsd(c.net)}
               </text>
+              {c.dexVolume !== null && c.dexVolume > 0 && (
+                <text y={r + halo + 44} textAnchor="middle" className="planet-vol">
+                  vol {usd(c.dexVolume)}
+                </text>
+              )}
             </g>
           );
         })}
@@ -406,7 +414,7 @@ const ago = (ts: number) => {
 };
 
 /** How to read the map. */
-export function SpaceKey() {
+export function SpaceKey({ live = false }: { live?: boolean }) {
   return (
     <div className="space-key">
       <span>
@@ -429,7 +437,7 @@ export function SpaceKey() {
       <span>✹ Supernova = big liquidity exodus</span>
       <span>
         <svg width="16" height="16" aria-hidden><circle cx="8" cy="8" r="6" fill="none" stroke="var(--flow-in)" strokeWidth="2" /></svg>
-        Ring: net in
+        Ring: net {live ? 'bridged' : 'liquidity'} in
       </span>
       <span>
         <svg width="16" height="16" aria-hidden><circle cx="8" cy="8" r="6" fill="none" stroke="var(--flow-out)" strokeWidth="2" strokeDasharray="3 2" /></svg>

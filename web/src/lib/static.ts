@@ -67,8 +67,8 @@ export async function staticReq(path: string, init?: RequestInit): Promise<unkno
   const now = Date.now();
 
   if (p === '/api/status') return r<StatusResponse>('status');
-  if (p === '/api/flows') return r(`flows:${q.get('window') ?? '7d'}`);
-  if (p.startsWith('/api/chains/')) return r(`chain:${p.split('/')[3]}:${q.get('window') ?? '7d'}`);
+  if (p === '/api/flows') return r(`flows:${q.get('window') ?? '1d'}`);
+  if (p.startsWith('/api/chains/')) return r(`chain:${p.split('/')[3]}:${q.get('window') ?? '1d'}`);
   if (p === '/api/pairs') {
     const chains = list(q.get('chains'));
     const since = now - Number(q.get('maxAgeHours') ?? 24) * 3_600_000;

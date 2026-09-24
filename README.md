@@ -8,7 +8,7 @@ Chains covered: **Solana, Base, Robinhood Chain, BNB Chain and HyperEVM/Hyperliq
 
 | Tab | What it shows |
 | --- | --- |
-| **Flows** | A **liquidity solar system**. The sun in the centre is the total liquidity bridged in the window. Chains are planets on three orbits by TVL class (> $5B, $1–5B, < $1B), sized by TVL. Comets are net chain-to-chain flows heading toward the receiving chain, and each planet's halo shows net inflow (blue) or outflow (red). Planets drift slowly; hover to pause and trace a chain's routes, or click for its TVL history, daily bridge in/out, counterpart chains, bridges and the top tokens bridged. Also: KPIs, diverging net-flow bars and a chain table. Windows: 24h / 7d / 30d. |
+| **Flows** | A **liquidity solar system**. The sun in the centre is the total liquidity bridged in the window. Chains are planets on three orbits by TVL class (> $5B, $1–5B, < $1B), sized by TVL. Comets are net chain-to-chain flows heading toward the receiving chain, and each planet's halo shows net inflow (blue) or outflow (red). Planets drift slowly; hover to pause and trace a chain's routes, or click for its TVL, stablecoin and DEX-volume history, daily bridged in/out and counterpart chains. Also: KPIs (TVL, stablecoins, DEX volume, bridged), net-liquidity bars, and a chain table with pool liquidity. Windows: live 5m / 1h / 6h and trend 1d / 3d / 7d, refreshed every 30 s. |
 | **Memescope** | Three live columns (**New pairs**, **Heating up**, **Smart money**) across the five chains, with chain, liquidity and age filters. Each pair shows the qualifying wallets that bought it. Each pair shows its **token logo**: the image the creator uploaded to their DexScreener token profile (picked up from DexScreener's latest-profiles feed and `tokens/v1` lookups), else GeckoTerminal's, else DexScreener's image CDN, else the token's initials and the **launchpad** it came from: pump.fun, letsbonk.fun, boop.fun, Bags, Meteora DBC, Moonshot, Clanker, Zora, Virtuals, four.meme, Flap or LiquidLaunch. Launchpads are recognised from the DEX id or the vanity suffix the launchpad grinds into the mint (`…pump`, `…bonk`, `…4444`); there's a launchpad filter too. |
 | **Sniper radar** | Snipers (buys within 1/2/3/5 s of pair creation), bundles (2+ wallets in the same block/slot), and **rings**: wallets linked because they keep sniping the same launches, with their exit behaviour (*dumps together*, *holds together*, *mixed*). A live **laser view** fires a beam from the wallet to the token on every buy (red beams back on sells) for rings, solo snipers and your watchlist. Filters: chain, launchpad/DEX, token-address prefix/suffix (`J7…`, `…pump`), ring intention. Tables list sniped launches (click for the opening buys: delay, block, size, bundle, ring, sold %, exit time) and sniper wallets. |
 | **Top traders** | A 60-day leaderboard: ROI, PnL, capital deployed, tokens, win rate, median hold, a 0–100 **legit score** and flags (`bot-like`, `one-hit`, `low-sample`, `small-size`). Watch or unwatch wallets, add your own (KOLs, known whales), and click a row for positions and trades. |
@@ -32,7 +32,7 @@ npm run dev                 # API on :8787, UI on http://localhost:5173
 
 Production: `npm run build && npm start`.
 
-The liquidity map also plays live events: a **super comet** for a single bridge transfer of $10M or more (`SUPER_COMET_USD`), and a **supernova** when a chain loses $50M or more in one transfer (`SUPERNOVA_USD`) or bridges out 3× its usual day (`SUPERNOVA_SPIKE`). These come from DefiLlama's large bridge transactions; when both legs of a transfer are seen, the route is exact.
+The liquidity map also plays live events. A **super comet** fires when $10M or more moves on one route within an hour (`SUPER_COMET_USD`). A **supernova** fires when a chain's stablecoins fall by $50M or more in 24h, or it bridges out $50M or more net within an hour (`SUPERNOVA_USD`).
 
 Standalone demo page: `npm run snapshot` runs the simulator for about 45 seconds, records the API responses and writes one self-contained `dist-static/index.html`. That page needs no server: requests are answered from the recorded data, and sniper shots and alerts are replayed. The API serves the built UI on `PORT`.
 
@@ -46,16 +46,23 @@ The simulator is a small synthetic memecoin market: about 60 days of pump-and-du
 
 ## Data sources
 
-| Data | Source | Key? |
-| --- | --- | --- |
-| Token logos | DexScreener `token-profiles/latest/v1` and `tokens/v1/{chain}/{addresses}`, then GeckoTerminal `base_token.image_url`, then DexScreener's image CDN | no |
-| Chain TVL + history | DefiLlama `api.llama.fi/v2/chains`, `/v2/historicalChainTvl/{chain}` | no |
-| Bridge in/out per chain | DefiLlama bridges `bridgevolume/{chain}`, `bridgedaystats`, `bridges` | no |
-| New and trending pairs, trades | GeckoTerminal v2 `new_pools`, `trending_pools`, `pools/{pool}/trades` | no (the app rate-limits itself to 25 req/min) |
-| HyperEVM whales | Hyperliquid leaderboard (`stats-data.hyperliquid.xyz`), filtered to profitable accounts over $250K | no |
-| 60-day backfill (optional) | Dune: save `sql/top_meme_traders_60d.sql`, set `DUNE_API_KEY` + `DUNE_QUERY_ID` | yes |
+Everything below is free. The flows page refreshes every 30 seconds, but the server answers from per-source caches, so a refresh costs almost no API calls:
 
-**How the flow routes are computed.** DefiLlama reports how much leaves and arrives on each chain, but not the chain-to-chain matrix. So each chain's outflow is split across the other chains in proportion to what they received (a gravity model), and the map shows the net of each pair. The per-chain totals are measured; the routes are estimates, and the UI says so.
+| Data | Source | Refreshed |
+| --- | --- | --- |
+| Chain TVL + history | DefiLlama `api.llama.fi/v2/chains`, `/v2/historicalChainTvl/{chain}`, `/tvl/{protocol}` | 5 min / 60 min |
+| Stablecoin supply per chain (net liquidity for 1d–7d) | DefiLlama `stablecoins.llama.fi/stablecoinchains`, `/stablecoincharts/{chain}` | 5 min / 30 min |
+| DEX volume per chain (1d–7d) | DefiLlama `/overview/dexs/{chain}` | 15 min |
+| Chain-to-chain routes (comets, bridged in/out) | Wormholescan `api.wormholescan.io/api/v1/x-chain-activity/tops` (hourly and daily buckets per chain pair, all Wormhole apps) | 2 min / 15 min |
+| Pool liquidity + 5m / 1h / 6h DEX volume | GeckoTerminal `/networks/{net}/pools` (top pools, one chain every 30 s) | ~6 min per chain |
+| New pairs, trades | GeckoTerminal `new_pools`, `trending_pools`, `pools/{pool}/trades` | 60 s |
+| Token logos | DexScreener `token-profiles/latest/v1` and `tokens/v1/{chain}/{addresses}`, then GeckoTerminal, then DexScreener's image CDN | 60 s |
+| HyperEVM whales | Hyperliquid leaderboard | 6 h |
+| 60-day backfill (optional) | Dune: save `sql/top_meme_traders_60d.sql`, set `DUNE_API_KEY` + `DUNE_QUERY_ID` | cached result |
+
+**Windows.** *Live:* 5m, 1h and 6h. The ring shows net bridged in − out, and volume comes from GeckoTerminal's top pools. Route data is hourly, so 5m shows the latest hour of routes. *Trend:* 1d, 3d and 7d. The ring shows the change in stablecoin supply on the chain, which catches every bridge, mint and burn, and volume is all DEX volume from DefiLlama.
+
+**What the routes cover.** Comets are observed volume per chain pair on Wormhole: Portal, NTT, CCTP via Wormhole, Mayan and others. That is real data but not every bridge. Chains Wormhole doesn't connect (Lighter, Robinhood) show TVL and stablecoins without comets. DefiLlama's own bridge endpoints now require a paid Pro key, so they aren't used.
 
 **Robinhood Chain / HyperEVM network ids.** These default to `robinhood` and `hyperevm` on GeckoTerminal. At startup the scanner warns if a configured id isn't listed; override it with `GT_NETWORK_ROBINHOOD=…` / `GT_NETWORK_HYPEREVM=…`.
 

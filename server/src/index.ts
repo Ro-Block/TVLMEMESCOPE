@@ -7,7 +7,7 @@ import { openDb } from './db.ts';
 import { AlertEngine } from './engine/alerts.ts';
 import { DemoMarket } from './engine/demo-sim.ts';
 import { FlowEventEngine } from './engine/flow-events.ts';
-import { flowsSource, getChainDetail, getFlows } from './engine/flows.ts';
+import { flowsSource, getChainDetail, getFlows, parseWindow, startPoolRotation } from './engine/flows.ts';
 import { Ledger } from './engine/ledger.ts';
 import { LiveScanner, type TradeSink } from './engine/scanner.ts';
 import { SniperEngine } from './engine/snipers.ts';
@@ -36,6 +36,7 @@ const onTrades: TradeSink = (pair, fresh, now) => {
 if (memeMode === 'demo') new DemoMarket(ledger, alerts, onTrades, () => snipers.compute()).start();
 else new LiveScanner(ledger, onTrades).start();
 
+startPoolRotation();
 const flowEvents = new FlowEventEngine();
 flowEvents.start(DATA_MODE === 'demo' ? 'demo' : (await flowsSource()) === 'live' ? 'live' : 'demo');
 
@@ -54,7 +55,7 @@ const wrap =
     }
   };
 
-const windowOf = (q: unknown): FlowWindow => (q === '24h' || q === '30d' ? q : '7d');
+const windowOf = (q: unknown): FlowWindow => parseWindow(q);
 const listOf = (q: unknown) => (typeof q === 'string' && q ? q.split(',') : []);
 
 app.get('/api/status', wrap(async (): Promise<StatusResponse> => ({

@@ -21,6 +21,34 @@ export async function protocolTvl(slug: string): Promise<number> {
   return num(await getJson<number>('defillama', `${LLAMA}/tvl/${encodeURIComponent(slug)}`));
 }
 
+// ---------- stablecoins (stablecoins.llama.fi, free) ----------
+
+const STABLES = 'https://stablecoins.llama.fi';
+
+/** Current stablecoin supply (USD) per chain name. */
+export async function stablecoinChains(): Promise<Map<string, number>> {
+  const rows = await getJson<{ name: string; totalCirculatingUSD?: { peggedUSD?: number } }[]>('defillama-stablecoins', `${STABLES}/stablecoinchains`);
+  return new Map(rows.map((r) => [r.name.toLowerCase(), num(r.totalCirculatingUSD?.peggedUSD)]));
+}
+
+/** Daily stablecoin supply (USD) on one chain. */
+export async function stablecoinHistory(name: string): Promise<{ t: number; v: number }[]> {
+  const rows = await getJson<{ date: string; totalCirculatingUSD?: { peggedUSD?: number } }[]>('defillama-stablecoins', `${STABLES}/stablecoincharts/${encodeURIComponent(name)}`);
+  return rows.map((r) => ({ t: num(r.date) * 1000, v: num(r.totalCirculatingUSD?.peggedUSD) })).filter((r) => r.v > 0);
+}
+
+// ---------- DEX volume (free) ----------
+
+/** Daily DEX volume on one chain, plus DefiLlama's own 24h total. */
+export async function dexVolume(name: string): Promise<{ total24h: number; daily: { t: number; v: number }[] }> {
+  const res = await getJson<{ total24h?: number; totalDataChart?: [number, number][] }>(
+    'defillama-dexs',
+    `${LLAMA}/overview/dexs/${encodeURIComponent(name)}?excludeTotalDataChart=false&excludeTotalDataChartBreakdown=true`,
+    { timeoutMs: 25_000 },
+  );
+  return { total24h: num(res.total24h), daily: (res.totalDataChart ?? []).slice(-60).map(([t, v]) => ({ t: t * 1000, v: num(v) })) };
+}
+
 export async function chainTvlHistory(name: string): Promise<{ t: number; v: number }[]> {
   const rows = await getJson<{ date: number; tvl: number }[]>('defillama', `${LLAMA}/v2/historicalChainTvl/${encodeURIComponent(name)}`);
   return rows.map((r) => ({ t: num(r.date) * 1000, v: num(r.tvl) }));

@@ -19,7 +19,7 @@ export interface GtPool {
   priceUsd: number;
   mcap: number;
   liquidity: number;
-  volume: { m5: number; h1: number; h24: number };
+  volume: { m5: number; h1: number; h6?: number; h24: number };
   txns: { h1: { buys: number; sells: number }; h24: { buys: number; sells: number } };
   change: { m5: number; h1: number; h24: number };
 }
@@ -74,7 +74,7 @@ function mapPools(network: string, res: GtList): GtPool[] {
       priceUsd: num(a.base_token_price_usd),
       mcap: num(a.market_cap_usd) || num(a.fdv_usd),
       liquidity: num(a.reserve_in_usd),
-      volume: { m5: num(a.volume_usd?.m5), h1: num(a.volume_usd?.h1), h24: num(a.volume_usd?.h24) },
+      volume: { m5: num(a.volume_usd?.m5), h1: num(a.volume_usd?.h1), h6: num(a.volume_usd?.h6), h24: num(a.volume_usd?.h24) },
       txns: {
         h1: { buys: num(tx.h1?.buys), sells: num(tx.h1?.sells) },
         h24: { buys: num(tx.h24?.buys), sells: num(tx.h24?.sells) },
@@ -95,6 +95,12 @@ export async function newPools(network: string, page = 1): Promise<GtPool[]> {
 
 export async function trendingPools(network: string, duration: '5m' | '1h' | '6h' | '24h' = '1h'): Promise<GtPool[]> {
   const res = await getJson<GtList>('geckoterminal', `${GT}/networks/${network}/trending_pools?include=base_token,quote_token,dex&duration=${duration}`, { limiter: gtLimiter, headers });
+  return mapPools(network, res);
+}
+
+/** Top pools on a network (GeckoTerminal ranks them by activity): liquidity and volume windows. */
+export async function topPools(network: string): Promise<GtPool[]> {
+  const res = await getJson<GtList>('geckoterminal', `${GT}/networks/${network}/pools?page=1`, { limiter: gtLimiter, headers });
   return mapPools(network, res);
 }
 

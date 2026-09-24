@@ -6,7 +6,10 @@ export type Ecosystem = 'Ethereum' | 'Solana' | 'Hyperliquid' | 'BNB' | 'Base' |
 export const ECOSYSTEMS: Ecosystem[] = ['Ethereum', 'Solana', 'Hyperliquid', 'BNB', 'Base', 'Robinhood', 'Other'];
 
 export type DataSource = 'live' | 'demo';
-export type FlowWindow = '24h' | '7d' | '30d';
+/** Live windows (5m / 1h / 6h) and trend windows (1d / 3d / 7d). */
+export type FlowWindow = '5m' | '1h' | '6h' | '1d' | '3d' | '7d';
+export const LIVE_WINDOWS: FlowWindow[] = ['5m', '1h', '6h'];
+export const TREND_WINDOWS: FlowWindow[] = ['1d', '3d', '7d'];
 
 export interface ChainNode {
   id: string;
@@ -15,9 +18,28 @@ export interface ChainNode {
   ecosystem: Ecosystem;
   tvl: number;
   tvlChange7d: number | null; // fraction, 0.05 = +5%
-  inflow: number; // USD bridged in during the window
-  outflow: number; // USD bridged out during the window
-  net: number; // inflow - outflow
+  inflow: number; // USD bridged in during the window (observed routes)
+  outflow: number; // USD bridged out during the window (observed routes)
+  /**
+   * Net liquidity for the window: stablecoin supply change for trend windows (captures every
+   * bridge and mint), observed bridged in − out for live windows.
+   */
+  net: number;
+  /** Stablecoins on the chain now (USD). */
+  stablecoins: number | null;
+  /** Stablecoin supply change over the window (trend windows only). */
+  stableChange: number | null;
+  /** DEX volume in the window. */
+  dexVolume: number | null;
+  /** Liquidity in the chain's most active DEX pools. */
+  poolLiquidity: number | null;
+}
+
+export interface SourceStatus {
+  name: string;
+  ok: boolean;
+  updatedAt: number | null;
+  note?: string;
 }
 
 export interface Flow {
@@ -30,9 +52,12 @@ export interface FlowsResponse {
   window: FlowWindow;
   chains: ChainNode[];
   flows: Flow[];
-  totals: { tvl: number; bridged: number };
-  /** Per-chain in/out totals are measured; the chain-to-chain routing is modelled. */
-  routing: 'gravity-estimate' | 'simulated';
+  totals: { tvl: number; bridged: number; stablecoins: number; dexVolume: number };
+  /** Observed = real chain-pair volumes (Wormholescan). */
+  routing: 'observed' | 'simulated';
+  /** Window the routes cover (5m uses the latest hour: route data is hourly). */
+  routesWindow: FlowWindow;
+  sources: SourceStatus[];
   source: DataSource;
   updatedAt: number;
 }
@@ -41,6 +66,8 @@ export interface ChainDetail {
   chain: ChainNode;
   tvlHistory: { t: number; v: number }[];
   flowHistory: { t: number; inflow: number; outflow: number }[];
+  stableHistory: { t: number; v: number }[];
+  dexHistory: { t: number; v: number }[];
   counterparts: { chain: string; name: string; ecosystem: Ecosystem; toHere: number; fromHere: number }[];
   bridges: { name: string; volume: number }[];
   topTokens: { symbol: string; inUsd: number; outUsd: number }[];
@@ -67,7 +94,7 @@ export interface Pair {
   priceUsd: number;
   mcap: number;
   liquidity: number;
-  volume: { m5: number; h1: number; h24: number };
+  volume: { m5: number; h1: number; h6?: number; h24: number };
   txns: { h1: { buys: number; sells: number }; h24: { buys: number; sells: number } };
   change: { m5: number; h1: number; h24: number };
   trending: boolean;

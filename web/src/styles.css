@@ -316,7 +316,7 @@ tbody tr[aria-selected='true'] { background: var(--surface-2); }
 .space { container-type: inline-size; }
 @container (max-width: 560px) {
   .space .planet-name { font-size: 30px; stroke-width: 6px; }
-  .space .planet-net { display: none; }
+  .space .planet-net, .space .planet-vol { display: none; }
   .space .sun-value { font-size: 32px; }
   .space .sun-label { display: none; }
   .space-banner { font-size: 11px; }
@@ -337,3 +337,12 @@ tbody tr[aria-selected='true'] { background: var(--surface-2); }
 .event-row.super-comet .event-kind { color: var(--accent); }
 .event-row.supernova .event-kind { color: var(--warn); }
 @media (max-width: 640px) { .event-row { grid-template-columns: 1fr auto; } .event-row .event-kind { grid-column: 1 / -1; } }
+
+.window-picker { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; }
+.window-picker > div { display: grid; gap: 4px; }
+.window-group-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+.source-bar { display: flex; gap: 8px 16px; flex-wrap: wrap; align-items: center; font-size: 12px; margin-bottom: 14px; color: var(--text-secondary); }
+.source-bar .source i { font-style: normal; }
+.source-bar .source.ok i { color: var(--good); }
+.source-bar .source.bad i { color: var(--bad); }
+.space .planet-vol { fill: #9fd0ff; font-size: 10px; font-family: var(--mono); paint-order: stroke; stroke: var(--space-bg); stroke-width: 3px; }

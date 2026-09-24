@@ -18,23 +18,27 @@ export interface ChainMeta {
   ticker?: string;
   /** DefiLlama protocol slug to fall back on when the chain isn't listed as a chain (e.g. app-rollups). */
   protocol?: string;
+  /** Wormhole chain id, for observed cross-chain routes (Wormholescan). */
+  wormhole?: number;
+  /** GeckoTerminal network id, for pool liquidity and short-window DEX volume. */
+  gt?: string;
 }
 
 /** Chains shown on the liquidity map. */
 export const FLOW_CHAINS: ChainMeta[] = [
-  { id: 'ethereum', name: 'Ethereum', ecosystem: 'Ethereum', llama: ['Ethereum'] },
-  { id: 'arbitrum', name: 'Arbitrum', ecosystem: 'Ethereum', llama: ['Arbitrum'] },
-  { id: 'optimism', name: 'OP Mainnet', ecosystem: 'Ethereum', llama: ['OP Mainnet', 'Optimism'] },
-  { id: 'base', name: 'Base', ecosystem: 'Base', llama: ['Base'] },
-  { id: 'robinhood', name: 'Robinhood Chain', ecosystem: 'Robinhood', llama: ['Robinhood', 'Robinhood Chain'] },
-  { id: 'solana', name: 'Solana', ecosystem: 'Solana', llama: ['Solana'] },
-  { id: 'bsc', name: 'BNB Chain', ecosystem: 'BNB', llama: ['BSC', 'Binance'] },
+  { id: 'ethereum', name: 'Ethereum', ecosystem: 'Ethereum', llama: ['Ethereum'], wormhole: 2, gt: 'eth' },
+  { id: 'arbitrum', name: 'Arbitrum', ecosystem: 'Ethereum', llama: ['Arbitrum'], wormhole: 23, gt: 'arbitrum' },
+  { id: 'optimism', name: 'OP Mainnet', ecosystem: 'Ethereum', llama: ['OP Mainnet', 'Optimism'], wormhole: 24, gt: 'optimism' },
+  { id: 'base', name: 'Base', ecosystem: 'Base', llama: ['Base'], wormhole: 30, gt: 'base' },
+  { id: 'robinhood', name: 'Robinhood Chain', ecosystem: 'Robinhood', llama: ['Robinhood', 'Robinhood Chain'], gt: env.GT_NETWORK_ROBINHOOD ?? 'robinhood' },
+  { id: 'solana', name: 'Solana', ecosystem: 'Solana', llama: ['Solana'], wormhole: 1, gt: 'solana' },
+  { id: 'bsc', name: 'BNB Chain', ecosystem: 'BNB', llama: ['BSC', 'Binance'], wormhole: 4, gt: 'bsc' },
   { id: 'lighter', name: 'Lighter', ticker: 'LIT', ecosystem: 'Ethereum', llama: ['Lighter', 'zkLighter'], protocol: 'lighter' },
-  { id: 'hyperliquid', name: 'Hyperliquid', ecosystem: 'Hyperliquid', llama: ['Hyperliquid L1', 'Hyperliquid', 'HyperEVM'] },
-  { id: 'tron', name: 'Tron', ecosystem: 'Other', llama: ['Tron'] },
-  { id: 'avalanche', name: 'Avalanche', ecosystem: 'Other', llama: ['Avalanche', 'AVAX'] },
-  { id: 'polygon', name: 'Polygon', ecosystem: 'Other', llama: ['Polygon'] },
-  { id: 'sui', name: 'Sui', ecosystem: 'Other', llama: ['Sui'] },
+  { id: 'hyperliquid', name: 'Hyperliquid', ecosystem: 'Hyperliquid', llama: ['Hyperliquid L1', 'Hyperliquid', 'HyperEVM'], wormhole: 47, gt: 'hyperevm' },
+  { id: 'tron', name: 'Tron', ecosystem: 'Other', llama: ['Tron'], wormhole: 70, gt: 'tron' },
+  { id: 'avalanche', name: 'Avalanche', ecosystem: 'Other', llama: ['Avalanche', 'AVAX'], wormhole: 6, gt: 'avax' },
+  { id: 'polygon', name: 'Polygon', ecosystem: 'Other', llama: ['Polygon'], wormhole: 5, gt: 'polygon_pos' },
+  { id: 'sui', name: 'Sui', ecosystem: 'Other', llama: ['Sui'], wormhole: 21, gt: 'sui-network' },
 ];
 
 export interface MemeChainMeta extends MemeChain {

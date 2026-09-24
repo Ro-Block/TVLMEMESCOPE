@@ -26,7 +26,7 @@ await new Promise((r) => setTimeout(r, WARMUP_MS));
 
 const responses = {};
 responses.status = await get('/api/status');
-for (const w of ['24h', '7d', '30d']) {
+for (const w of ['5m', '1h', '6h', '1d', '3d', '7d']) {
   const flows = await get(`/api/flows?window=${w}`);
   responses[`flows:${w}`] = flows;
   for (const c of flows.chains) responses[`chain:${c.id}:${w}`] = await get(`/api/chains/${c.id}?window=${w}`);

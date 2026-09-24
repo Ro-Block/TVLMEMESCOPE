@@ -1,34 +1,10 @@
 import type { FlowEvent } from '../../../shared/types.ts';
 import { FLOW_CHAINS, FLOW_EVENTS } from '../config.ts';
 import { gauss, mulberry32 } from '../rand.ts';
-import * as llama from '../sources/defillama.ts';
-import { getFlows, gravityMatrix, loadSeries } from './flows.ts';
-import { median } from './roi.ts';
+import { getFlows } from './flows.ts';
 
 const usd = (n: number) => (n >= 1e9 ? `$${(n / 1e9).toFixed(2)}B` : `$${(n / 1e6).toFixed(1)}M`);
 const nameOf = (id: string) => FLOW_CHAINS.find((c) => c.id === id)?.name ?? id;
-
-interface Tx extends llama.LargeTx {
-  chain: string;
-}
-
-/**
- * Pairs the deposit and withdrawal legs of the same transfer (same token, amount within 2%,
- * release up to an hour after the deposit). Matched pairs give an exact route.
- */
-export function matchLegs(txs: Tx[]): { from?: string; to?: string; tx: Tx; exact: boolean }[] {
-  const deposits = txs.filter((t) => t.isDeposit).sort((a, b) => a.ts - b.ts);
-  const releases = txs.filter((t) => !t.isDeposit);
-  const used = new Set<Tx>();
-  const out: { from?: string; to?: string; tx: Tx; exact: boolean }[] = [];
-  for (const d of deposits) {
-    const r = releases.find((x) => !used.has(x) && x.chain !== d.chain && x.token === d.token && Math.abs(x.usd - d.usd) <= d.usd * 0.02 && x.ts >= d.ts - 60_000 && x.ts - d.ts <= 3_600_000);
-    if (r) used.add(r);
-    out.push({ from: d.chain, to: r?.chain, tx: d, exact: !!r });
-  }
-  for (const r of releases) if (!used.has(r)) out.push({ to: r.chain, tx: r, exact: false });
-  return out;
-}
 
 /** Big single bridge transfers (super comets) and liquidity exoduses (supernovas) for the solar map. */
 export class FlowEventEngine {
@@ -56,78 +32,40 @@ export class FlowEventEngine {
     if (mode === 'demo') return this.startDemo();
     const run = () => void this.pollLive().catch((e) => console.warn('[flow-events]', (e as Error).message));
     run();
-    setInterval(run, 5 * 60_000).unref();
+    setInterval(run, 2 * 60_000).unref();
   }
 
-  /** Most likely counterpart of a chain, from the 24h gravity routing. */
-  private async counterpart(chain: string, direction: 'to' | 'from'): Promise<string | undefined> {
-    const { chains } = await getFlows('24h');
-    const m = gravityMatrix(chains);
-    let best: string | undefined;
-    let bestV = 0;
-    for (const c of chains) {
-      if (c.id === chain) continue;
-      const v = direction === 'to' ? m.get(chain)?.get(c.id) ?? 0 : m.get(c.id)?.get(chain) ?? 0;
-      if (v > bestV) [best, bestV] = [c.id, v];
-    }
-    return best;
-  }
-
+  /**
+   * Live rules, on data that is free and already cached by the flow engine:
+   * - super comet: $10M+ moved on one route within the latest hour (Wormholescan chain pairs)
+   * - supernova: a chain's stablecoins fell by $50M+ over the last day (DefiLlama), or it bridged
+   *   out $50M+ net within the latest hour
+   */
   private async pollLive() {
-    const series = await loadSeries('all');
-    const now = Date.now();
-    const txs: Tx[] = [];
-    for (const s of series) {
-      for (const alias of s.meta.llama) {
-        try {
-          const rows = await llama.largeTransactions(alias, Math.floor((now - 2 * 3_600_000) / 1000), Math.floor(now / 1000));
-          txs.push(...rows.filter((r) => r.usd >= FLOW_EVENTS.superCometUsd).map((r) => ({ ...r, chain: s.meta.id })));
-          break;
-        } catch {
-          /* try the next alias */
-        }
-      }
-    }
-
-    for (const m of matchLegs(txs)) {
-      const from = m.from ?? (await this.counterpart(m.to!, 'from'));
-      const to = m.to ?? (await this.counterpart(m.from!, 'to'));
-      if (!from || !to) continue;
-      const t = m.tx;
+    const hour = Math.floor(Date.now() / 3_600_000) * 3_600_000;
+    const day = Math.floor(Date.now() / 86_400_000) * 86_400_000;
+    const h = await getFlows('1h');
+    for (const f of h.flows) {
+      if (f.usd < FLOW_EVENTS.superCometUsd) continue;
       this.emit({
-        id: `c:${t.chain}:${t.txHash}`,
-        ts: t.ts,
+        id: `c:${f.from}>${f.to}:${hour}`,
+        ts: Date.now(),
         kind: 'super-comet',
-        chain: from,
-        to,
-        estimatedRoute: !m.exact,
-        usd: t.usd,
-        token: t.token,
-        bridge: t.bridge,
-        txHash: t.txHash,
-        message: `☄ ${usd(t.usd)}${t.token ? ` ${t.token}` : ''} bridged ${nameOf(from)} → ${nameOf(to)}${m.exact ? '' : ' (route estimated)'}`,
+        chain: f.from,
+        to: f.to,
+        usd: f.usd,
+        message: `☄ ${usd(f.usd)} moved ${nameOf(f.from)} → ${nameOf(f.to)} in the last hour`,
       });
-      if (m.from && t.usd >= FLOW_EVENTS.supernovaUsd) {
-        this.emit({ id: `n:${t.chain}:${t.txHash}`, ts: t.ts, kind: 'supernova', chain: m.from, usd: t.usd, token: t.token, txHash: t.txHash, message: `✹ ${usd(t.usd)} left ${nameOf(m.from)} in a single transfer` });
+    }
+    for (const c of h.chains) {
+      if (c.inflow - c.outflow <= -FLOW_EVENTS.supernovaUsd) {
+        this.emit({ id: `w:${c.id}:${hour}`, ts: Date.now(), kind: 'supernova', chain: c.id, usd: c.outflow - c.inflow, message: `✹ ${usd(c.outflow - c.inflow)} net bridged out of ${c.name} in the last hour` });
       }
     }
-
-    // Exodus days: outflow far above the chain's recent norm.
-    for (const s of series) {
-      const days = s.bridgeDays;
-      const last = days.at(-1);
-      if (!last || days.length < 8) continue;
-      const norm = median(days.slice(-15, -1).map((d) => d.depositUSD)) ?? 0;
-      const netOut = last.depositUSD - last.withdrawUSD;
-      if (norm > 0 && last.depositUSD >= FLOW_EVENTS.supernovaSpike * norm && netOut >= FLOW_EVENTS.supernovaUsd / 2) {
-        this.emit({
-          id: `x:${s.meta.id}:${last.t}`,
-          ts: now,
-          kind: 'supernova',
-          chain: s.meta.id,
-          usd: netOut,
-          message: `✹ ${nameOf(s.meta.id)} exodus: ${usd(last.depositUSD)} bridged out today, ${(last.depositUSD / norm).toFixed(1)}× its usual day`,
-        });
+    const d = await getFlows('1d');
+    for (const c of d.chains) {
+      if (c.stableChange !== null && c.stableChange <= -FLOW_EVENTS.supernovaUsd) {
+        this.emit({ id: `s:${c.id}:${day}`, ts: Date.now(), kind: 'supernova', chain: c.id, usd: -c.stableChange, message: `✹ Stablecoins on ${c.name} fell ${usd(-c.stableChange)} in 24h` });
       }
     }
     if (this.seen.size > 5_000) this.seen.clear();
@@ -150,7 +88,7 @@ export class FlowEventEngine {
       setTimeout(() => void comet(), 14_000 + rng() * 16_000).unref();
     };
     const nova = async () => {
-      const { chains } = await getFlows('7d');
+      const { chains } = await getFlows('1d');
       const c = chains[Math.floor(rng() * chains.length)];
       const amount = FLOW_EVENTS.supernovaUsd * (1.2 + rng() * 5);
       this.emit({ id: `demo-n-${++n}`, ts: Date.now(), kind: 'supernova', chain: c.id, usd: amount, message: `✹ ${usd(amount)} left ${c.name} within the hour` });

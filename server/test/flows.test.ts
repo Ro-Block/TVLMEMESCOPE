@@ -19,3 +19,22 @@ test('gravity model allocates each chain’s full outflow to the other chains', 
   // b is a big net exporter and a the big receiver, so b -> a should be the strongest route.
   assert.deepEqual([flows[0].from, flows[0].to], ['b', 'a']);
 });
+
+import { pairMatrix } from '../src/engine/flows.ts';
+
+test('observed routes use only the latest N buckets and known chains', () => {
+  const H = 3_600_000;
+  const ids = new Map([[2, 'ethereum'], [30, 'base'], [1, 'solana']]);
+  const buckets = [
+    { from: 3 * H, src: 2, dst: 30, usd: 100, count: 1 },
+    { from: 3 * H, src: 30, dst: 2, usd: 40, count: 1 },
+    { from: 2 * H, src: 2, dst: 30, usd: 50, count: 1 },
+    { from: 1 * H, src: 2, dst: 30, usd: 1_000, count: 1 }, // too old for n=2
+    { from: 3 * H, src: 2, dst: 999, usd: 7, count: 1 }, // unknown chain
+  ];
+  const m = pairMatrix(buckets, 2, (x) => ids.get(x));
+  assert.equal(m.get('ethereum')!.get('base'), 150);
+  assert.equal(m.get('base')!.get('ethereum'), 40);
+  const flows = netFlows(m);
+  assert.deepEqual(flows, [{ from: 'ethereum', to: 'base', usd: 110 }]);
+});
