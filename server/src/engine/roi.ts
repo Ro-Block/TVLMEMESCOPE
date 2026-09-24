@@ -11,6 +11,8 @@ export interface LedgerTrade {
   qty: number;
   usd: number;
   ts: number;
+  /** Block number / Solana slot, when the source provides it. */
+  block?: number | null;
 }
 
 interface PositionCalc extends Position {

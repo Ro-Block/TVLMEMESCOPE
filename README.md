@@ -10,6 +10,7 @@ Chains covered: **Solana, Base, Robinhood Chain, BNB Chain and HyperEVM/Hyperliq
 | --- | --- |
 | **Flows** | A chord-style map with chains grouped by ecosystem and sized by TVL. Curves show net chain-to-chain flows, and the animated dashes travel toward the chain receiving liquidity. Also: KPIs, diverging net-flow bars and a chain table. Click a chain for its TVL history, daily bridge in/out, counterpart chains, bridges and the top tokens bridged. Windows: 24h / 7d / 30d. |
 | **Memescope** | Three live columns (**New pairs**, **Heating up**, **Smart money**) across the five chains, with chain, liquidity and age filters. Each pair shows the qualifying wallets that bought it. |
+| **Sniper radar** | Snipers (buys within 1/2/3/5 s of pair creation), bundles (2+ wallets in the same block/slot), and **rings**: wallets linked because they keep sniping the same launches, with their exit behaviour (*dumps together*, *holds together*, *mixed*). A live **laser view** fires a beam from the wallet to the token on every buy (red beams back on sells) for rings, solo snipers and your watchlist. Filters: chain, launchpad/DEX, token-address prefix/suffix (`J7…`, `…pump`), ring intention. Tables list sniped launches (click for the opening buys: delay, block, size, bundle, ring, sold %, exit time) and sniper wallets. |
 | **Top traders** | A 60-day leaderboard: ROI, PnL, capital deployed, tokens, win rate, median hold, a 0–100 **legit score** and flags (`bot-like`, `one-hit`, `low-sample`, `small-size`). Watch or unwatch wallets, add your own (KOLs, known whales), and click a row for positions and trades. |
 | **Alerts** | A live feed (SSE) with toasts, browser notifications and sound, plus optional **Telegram** and **Discord** delivery. Alert rules can be edited: chains, min buy, max pair age, min ROI, min score, min tokens, cluster size and window, and "always alert on watchlist". |
 
@@ -17,6 +18,9 @@ Two alert types:
 
 - **Whale buy**: a qualifying wallet buys at least *min buy* of a pair younger than *max pair age*.
 - **Cluster**: at least *N* qualifying wallets each buy at least *min buy* of the same new pair within *M* minutes.
+- **Sniper ring**: at least *K* members of a known ring snipe the same new pair.
+
+Snipers are kept out of smart money by default: a wallet whose median entry over 3 or more launches falls inside the sniper window gets a `sniper` flag, and never qualifies for whale or cluster alerts or the Smart money column. This is a toggle on the Alerts tab. The memescope marks heavily sniped or bundled pairs and can hide them.
 
 ## Quick start
 
@@ -65,6 +69,18 @@ The scanner polls trades on the most active recent pairs and stores every buy an
 
 The ledger only knows trades it has seen, so a fresh install needs time (or the Dune backfill) before live 60-day numbers mean much. Hyperliquid leaderboard seeds use 30-day perps ROI. They pass on score alone, because they have no meme-token sample.
 
+## How sniper, bundle and ring detection works
+
+This is computed over the first hour of trades for every launch in the last 30 days (`server/src/engine/sniper-analysis.ts`):
+
+- **Sniper**: the wallet's first buy lands within the sniper window of `pool_created_at`, or in the launch block itself when the opening trades were observed.
+- **Bundle**: two or more sniper wallets whose first buys land in the same block or Solana slot. If there's no block data, the same second is used instead.
+- **Dumped launch**: snipers holding at least half of the sniper dollars sold 80% or more within 10 minutes.
+- **Links**: a pair of wallets is linked when they sniped at least 3 of the same launches, with Jaccard ≥ 0.25, and **lift ≥ 2**. Lift means they co-occur at least twice as often as two independent snipers would, so busy solo snipers don't link to everyone. Rings are the connected groups of linked wallets.
+- **Intention**: for each launch the ring shared, members either all exit within 3 minutes of each other (*dump together*), all hold past the first hour (*hold together*), or neither. The majority outcome (≥ 60%) names the ring, otherwise it is *mixed*. *Cohesion* is the share of launches where they acted together.
+
+Limits on live data: GeckoTerminal's `trades` endpoint returns only the latest 300 trades, so the scanner polls pairs under 15 minutes old first to catch their opening buys. How precise the detection is depends on how quickly a new pool shows up in `new_pools`. Funding-source links (wallets funded from the same address) need a chain-transfer source, which isn't wired in yet. Today's links come purely from trading behaviour.
+
 ## Configuration (`.env`)
 
 | Var | Default | |
@@ -90,6 +106,8 @@ server/src/engine/flows.ts gravity routing + flow/chain-detail endpoints (live o
 server/src/engine/roi.ts   pure position/ROI/legit-score maths (unit-tested)
 server/src/engine/ledger.ts trade store, rolling stats, watchlist, seeds
 server/src/engine/alerts.ts whale-buy and cluster rules, SSE fan-out, delivery
+server/src/engine/sniper-analysis.ts pure sniper / bundle / ring detection (unit-tested)
+server/src/engine/snipers.ts snapshot cache, live shot stream, ring alerts
 server/src/engine/scanner.ts live GeckoTerminal polling loop
 server/src/engine/demo-sim.ts synthetic market for offline use
 web/src/                   React UI (Vite)

@@ -56,18 +56,18 @@ export function AlertsPage({ alerts, chains, status, sound, setSound, onWallet }
             <h2>Feed</h2>
             <div className="spacer" />
             <div className="seg" role="group" aria-label="Alert type">
-              {(['all', 'whale_buy', 'cluster'] as const).map((k) => (
-                <button key={k} aria-pressed={kind === k} onClick={() => setKind(k)}>{k === 'all' ? 'All' : k === 'whale_buy' ? 'Whale buys' : 'Clusters'}</button>
+              {(['all', 'whale_buy', 'cluster', 'ring'] as const).map((k) => (
+                <button key={k} aria-pressed={kind === k} onClick={() => setKind(k)}>{k === 'all' ? 'All' : k === 'whale_buy' ? 'Whale buys' : k === 'cluster' ? 'Clusters' : 'Sniper rings'}</button>
               ))}
             </div>
           </div>
           {shown.length === 0 && <div className="empty">No alerts yet. They appear here live as the scanner finds qualifying buys.</div>}
           {shown.map((a) => (
             <div key={a.id} className="alert-item">
-              <div className="ico" aria-hidden>{a.kind === 'cluster' ? '🚨' : a.wallets[0]?.tier === 'whale' ? '🐋' : '🧠'}</div>
+              <div className="ico" aria-hidden>{a.kind === 'ring' ? '🎯' : a.kind === 'cluster' ? '🚨' : a.wallets[0]?.tier === 'whale' ? '🐋' : '🧠'}</div>
               <div style={{ minWidth: 0 }}>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <b>{a.kind === 'cluster' ? `${a.wallets.length} smart wallets` : a.wallets[0]?.label ?? shortAddr(a.wallets[0]?.wallet ?? '')}</b>
+                  <b>{a.kind === 'ring' ? `${a.wallets.length} ring wallets` : a.kind === 'cluster' ? `${a.wallets.length} smart wallets` : a.wallets[0]?.label ?? shortAddr(a.wallets[0]?.wallet ?? '')}</b>
                   <span className="secondary">bought</span>
                   <b>{a.pair.symbol}</b>
                   <span className="badge" style={{ gap: 6 }}><i className="swatch" style={{ background: chainColor(a.chain), borderRadius: '50%' }} />{a.chain}</span>
@@ -148,6 +148,12 @@ export function AlertsPage({ alerts, chains, status, sound, setSound, onWallet }
                   {numField('minTokens', 'Min tokens traded', 'Sample size in the window')}
                   {numField('clusterSize', 'Cluster size', 'Qualifying wallets in one pair')}
                   {numField('clusterWindowMin', 'Cluster window (min)', 'How close together the buys must be')}
+                  {numField('sniperWindowSec', 'Sniper window (seconds)', 'Buys this soon after pair creation count as snipes', 1, 0.5)}
+                  <label htmlFor="xs">Exclude snipers from smart money<div className="note">Wallets that usually buy in the first seconds never count as smart money</div></label>
+                  <input id="xs" type="checkbox" checked={st.excludeSnipers} onChange={(e) => void save({ ...st, excludeSnipers: e.target.checked })} />
+                  <label htmlFor="ra">Sniper ring alerts<div className="note">Linked sniper wallets hitting the same new pair</div></label>
+                  <input id="ra" type="checkbox" checked={st.ringAlerts} onChange={(e) => void save({ ...st, ringAlerts: e.target.checked })} />
+                  {numField('ringMinMembers', 'Ring members to alert', 'How many ring wallets must snipe the pair')}
                   <label htmlFor="wl">Always alert on watchlist<div className="note">Ignore score and ROI for wallets you watch</div></label>
                   <input id="wl" type="checkbox" checked={st.includeWatchlist} onChange={(e) => void save({ ...st, includeWatchlist: e.target.checked })} />
                 </div>

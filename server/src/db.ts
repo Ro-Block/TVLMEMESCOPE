@@ -23,6 +23,7 @@ export function openDb(path: string): Db {
       updated_at INTEGER NOT NULL, json TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS pools_created ON pools (chain, created_at);
+    CREATE INDEX IF NOT EXISTS pools_addr ON pools (chain, address);
     CREATE TABLE IF NOT EXISTS seeds (
       wallet TEXT NOT NULL, chain TEXT NOT NULL, source TEXT NOT NULL, label TEXT, json TEXT NOT NULL, updated_at INTEGER NOT NULL,
       PRIMARY KEY (wallet, chain, source)
@@ -35,6 +36,9 @@ export function openDb(path: string): Db {
     CREATE INDEX IF NOT EXISTS alerts_ts ON alerts (ts);
     CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, json TEXT NOT NULL);
   `);
+  // Migrations for databases created by earlier versions.
+  const cols = (db.prepare('PRAGMA table_info(trades)').all() as { name: string }[]).map((c) => c.name);
+  if (!cols.includes('block')) db.exec('ALTER TABLE trades ADD COLUMN block INTEGER');
   return db;
 }
 

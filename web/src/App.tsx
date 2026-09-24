@@ -6,10 +6,12 @@ import { usePoll, useStored } from './lib/hooks.ts';
 import { AlertsPage } from './pages/AlertsPage.tsx';
 import { FlowsPage } from './pages/FlowsPage.tsx';
 import { MemescopePage } from './pages/MemescopePage.tsx';
+import { SnipersPage } from './pages/SnipersPage.tsx';
+import { shotStore } from './lib/shots.ts';
 import { TradersPage, WalletDrawer } from './pages/TradersPage.tsx';
 
-type Tab = 'flows' | 'scope' | 'traders' | 'alerts';
-const TABS: [Tab, string][] = [['flows', 'Flows'], ['scope', 'Memescope'], ['traders', 'Top traders'], ['alerts', 'Alerts']];
+type Tab = 'flows' | 'scope' | 'snipers' | 'traders' | 'alerts';
+const TABS: [Tab, string][] = [['flows', 'Flows'], ['scope', 'Memescope'], ['snipers', 'Sniper radar'], ['traders', 'Top traders'], ['alerts', 'Alerts']];
 const tabFromHash = (): Tab => (TABS.find(([t]) => `#${t}` === location.hash)?.[0] ?? 'flows');
 
 function beep() {
@@ -57,7 +59,9 @@ export function App() {
   // Live alerts over SSE: feed + toast + browser notification + sound.
   useEffect(() => {
     void api.alerts().then(setAlerts);
+    void api.shots().then(shotStore.seed).catch(() => {});
     const es = new EventSource('/api/stream');
+    es.addEventListener('shot', (ev) => shotStore.push(JSON.parse((ev as MessageEvent).data)));
     es.addEventListener('alert', (ev) => {
       const a = JSON.parse((ev as MessageEvent).data) as Alert;
       setAlerts((xs) => [a, ...xs.filter((x) => x.id !== a.id)].slice(0, 300));
@@ -66,7 +70,7 @@ export function App() {
       if (tabRef.current !== 'alerts') setUnseen((n) => n + 1);
       if (soundRef.current) beep();
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && document.hidden) {
-        new Notification(a.kind === 'cluster' ? 'Smart money cluster' : 'Whale buy', { body: a.message, tag: a.id });
+        new Notification(a.kind === 'cluster' ? 'Smart money cluster' : a.kind === 'ring' ? 'Sniper ring' : 'Whale buy', { body: a.message, tag: a.id });
       }
     });
     return () => es.close();
@@ -101,6 +105,7 @@ export function App() {
 
       {tab === 'flows' && <FlowsPage />}
       {tab === 'scope' && status && <MemescopePage chains={chains} source={status.memescope} onWallet={openWallet} />}
+      {tab === 'snipers' && status && <SnipersPage chains={chains} source={status.memescope} onWallet={openWallet} />}
       {tab === 'traders' && status && <TradersPage chains={chains} windowDays={status.roiWindowDays} onWallet={openWallet} />}
       {tab === 'alerts' && <AlertsPage alerts={alerts} chains={chains} status={status} sound={sound} setSound={setSound} onWallet={openWallet} />}
 

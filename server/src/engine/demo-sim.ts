@@ -1,7 +1,8 @@
 import type { Pair } from '../../../shared/types.ts';
-import { MEME_CHAINS, ROI_WINDOW_DAYS } from '../config.ts';
+import { BLOCK_MS, MEME_CHAINS, ROI_WINDOW_DAYS } from '../config.ts';
 import { fakeAddress, gauss, mulberry32, pick, type Rng } from '../rand.ts';
 import type { AlertEngine } from './alerts.ts';
+import type { TradeSink } from './scanner.ts';
 import type { Ledger } from './ledger.ts';
 import type { LedgerTrade } from './roi.ts';
 
@@ -9,7 +10,8 @@ import type { LedgerTrade } from './roi.ts';
 // Wallets have a hidden skill; skilled wallets pick better pairs, enter earlier and exit near the top,
 // so the ROI engine, legit scoring and alerts all have something real to find.
 
-type Kind = 'whale' | 'smart' | 'retail' | 'bot' | 'sniper';
+type Kind = 'whale' | 'smart' | 'retail' | 'bot' | 'sniper' | 'ring';
+type RingStyle = 'dump' | 'hold' | 'mixed';
 interface SimWallet {
   address: string;
   chain: string;
@@ -17,6 +19,7 @@ interface SimWallet {
   skill: number;
   size: number;
   label?: string;
+  ring?: { id: number; style: RingStyle };
 }
 interface SimPool {
   pair: Pair;
@@ -51,6 +54,9 @@ export class DemoMarket {
   constructor(
     private ledger: Ledger,
     private alerts: AlertEngine,
+    private onTrades: TradeSink,
+    /** Runs derived analyses (sniper rings) once history exists, before live ticks. */
+    private warm: () => void = () => {},
   ) {}
 
   private priceAt(p: SimPool, t: number): number {
@@ -79,6 +85,13 @@ export class DemoMarket {
           });
         }
       }
+      // Sniper rings: wallets that bundle into the launch block together, then exit by style.
+      const styles: [RingStyle, number][] = [['dump', 5], ['dump', 3], ['hold', 4], ['mixed', 3]];
+      styles.forEach(([style, size], k) => {
+        for (let i = 0; i < size; i++) {
+          this.wallets.push({ address: fakeAddress(this.rng, c.id), chain: c.id, kind: 'ring', skill: 0.5, size: 300 + this.rng() * 1_700, ring: { id: k, style } });
+        }
+      });
     }
   }
 
@@ -107,8 +120,22 @@ export class DemoMarket {
     const r = this.rng;
     const chain = p.pair.chain;
     const quality = Math.log(p.peak + 1); // what skilled wallets can "see"
+    // One decision per ring per launch, so members act together.
+    const plans = new Map<number, { join: boolean; delay: number; exit: number }>();
+    for (let k = 0; k < 4; k++) plans.set(k, { join: r() < 0.3, delay: 300 + r() * 2_200, exit: 60_000 + r() * 180_000 });
     for (const w of this.wallets) {
       if (w.chain !== chain) continue;
+      if (w.ring) {
+        const plan = plans.get(w.ring.id)!;
+        if (!plan.join || r() > 0.85) continue;
+        const exit =
+          w.ring.style === 'dump' ? plan.exit + gauss(r) * 10_000 : w.ring.style === 'hold' ? 70 * 60_000 + plan.exit * 20 + gauss(r) * 60_000 : 60_000 + r() * 120 * 60_000;
+        this.pushTrades(p, w, [
+          { t: plan.delay, kind: 'buy', frac: 1 },
+          { t: Math.max(plan.delay + 5_000, exit), kind: 'sell', frac: w.ring.style === 'mixed' ? 0.3 + r() * 0.7 : 1 },
+        ]);
+        continue;
+      }
       const base = w.kind === 'retail' ? 0.12 : w.kind === 'bot' ? 0.6 : w.kind === 'sniper' ? 0.5 : 0.1;
       const pickiness = w.kind === 'whale' || w.kind === 'smart' ? Math.pow(quality / 2.2, 3 * w.skill) : 1;
       if (r() > base * pickiness) continue;
@@ -122,8 +149,9 @@ export class DemoMarket {
           trades.push({ t, kind: 'buy', frac: 1 }, { t: t + 5_000 + r() * 20_000, kind: 'sell', frac: 1 });
         }
       } else if (w.kind === 'sniper') {
-        const t = 2_000 + r() * 20_000;
-        trades.push({ t, kind: 'buy', frac: 1 }, { t: t + 10_000 + r() * 30_000, kind: 'sell', frac: 1 });
+        // Solo sniper: in within ~3s of the pair going live, out within a minute or two.
+        const t = 400 + r() * 2_600;
+        trades.push({ t, kind: 'buy', frac: 1 }, { t: t + 20_000 + r() * 70_000, kind: 'sell', frac: 1 });
       } else {
         const tb = w.skill > 0.55 ? p.tPeak * (1 - w.skill) * r() : p.tPeak * (0.4 + r() * 0.9);
         const exitNoise = (1 - w.skill) * p.life * 0.5;
@@ -135,6 +163,15 @@ export class DemoMarket {
           trades.push({ t: ts + r() * p.life * 0.2, kind: 'sell', frac: 1 });
         }
       }
+      this.pushTrades(p, w, trades);
+    }
+    p.pending.sort((a, b) => a.ts - b.ts);
+  }
+
+  private pushTrades(p: SimPool, w: SimWallet, trades: { t: number; kind: 'buy' | 'sell'; frac: number }[]) {
+    const r = this.rng;
+    const chain = p.pair.chain;
+    {
       trades.sort((a, b) => a.t - b.t);
       let held = 0;
       for (const tr of trades) {
@@ -152,10 +189,10 @@ export class DemoMarket {
           usd = qty * px;
           held -= qty;
         }
-        p.pending.push({ tx: `sim${++this.txn}`, chain, pool: p.pair.address, wallet: w.address, token: p.pair.baseAddress, kind: tr.kind, qty, usd, ts: Math.round(at) });
+        const ts = Math.round(at);
+        p.pending.push({ tx: `sim${++this.txn}`, chain, pool: p.pair.address, wallet: w.address, token: p.pair.baseAddress, kind: tr.kind, qty, usd, ts, block: Math.floor(ts / (BLOCK_MS[chain] ?? 1_000)) });
       }
     }
-    p.pending.sort((a, b) => a.ts - b.ts);
   }
 
   private refreshPair(p: SimPool, now: number) {
@@ -182,7 +219,7 @@ export class DemoMarket {
     const fresh = this.ledger.insertTrades(due);
     this.refreshPair(p, now);
     this.ledger.upsertPools([p.pair]);
-    if (withAlerts && fresh.length) this.alerts.onTrades(p.pair, fresh, now);
+    if (withAlerts && fresh.length) this.onTrades(p.pair, fresh, now);
   }
 
   /** Builds ~60 days of history, then keeps the market ticking in real time. */
@@ -204,6 +241,7 @@ export class DemoMarket {
     }
     this.alerts.deliver = false;
     for (const p of this.pools) this.flush(p, now, false);
+    this.warm();
     // A few fresh pairs so the memescope and alert feed aren't empty on first load.
     for (const c of MEME_CHAINS) for (let i = 0; i < 3; i++) this.pools.push(this.makePool(c.id, now - this.rng() * 45 * 60_000, true));
     for (const p of this.pools.slice(-MEME_CHAINS.length * 3)) this.flush(p, now, true);

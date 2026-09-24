@@ -64,6 +64,7 @@ export interface Pair {
   txns: { h1: { buys: number; sells: number }; h24: { buys: number; sells: number } };
   change: { m5: number; h1: number; h24: number };
   trending: boolean;
+  snipe?: LaunchSummary;
   smartWallets: { wallet: string; usd: number; tier: TraderTier }[];
   url: string;
 }
@@ -125,7 +126,7 @@ export interface TradeRow {
   ts: number;
 }
 
-export type AlertKind = 'whale_buy' | 'cluster';
+export type AlertKind = 'whale_buy' | 'cluster' | 'ring';
 
 export interface Alert {
   id: string;
@@ -148,6 +149,13 @@ export interface AlertSettings {
   clusterSize: number;
   clusterWindowMin: number;
   includeWatchlist: boolean;
+  /** A buy this many seconds (or fewer) after pair creation counts as a snipe. */
+  sniperWindowSec: number;
+  /** Keep sniper/bundler wallets out of smart-money alerts and columns. */
+  excludeSnipers: boolean;
+  /** Alert when members of a known sniper ring hit the same new pair. */
+  ringAlerts: boolean;
+  ringMinMembers: number;
   telegram: boolean;
   discord: boolean;
 }
@@ -166,4 +174,105 @@ export interface StatusResponse {
   ledger: { trades: number; wallets: number; pools: number; oldest: number | null };
   sources: Record<string, { ok: boolean; lastError?: string; lastOk?: number }>;
   notify: { telegram: boolean; discord: boolean };
+}
+
+// ---------- snipers & bundles ----------
+
+export interface LaunchSummary {
+  snipers: number;
+  bundled: number;
+  /** Share of first-5-minute buy volume that came from snipers. */
+  share: number;
+  rings: number;
+  dumped: boolean;
+}
+
+export interface SniperBuy {
+  wallet: string;
+  delaySec: number;
+  block: number | null;
+  usd: number;
+  bundled: boolean;
+  ringId?: string;
+  /** Fraction of the bought tokens sold in the first hour. */
+  soldPct: number;
+  exitMin: number | null;
+}
+
+export interface Launch extends LaunchSummary {
+  pair: Pair;
+  launchBlock: number | null;
+  sniperUsd: number;
+  buys: SniperBuy[];
+  ringIds: string[];
+}
+
+export type RingIntention = 'coordinated-dump' | 'coordinated-hold' | 'mixed';
+
+export interface SniperProfile {
+  wallet: string;
+  chain: string;
+  label?: string;
+  launches: number;
+  medianDelaySec: number;
+  bundleRate: number;
+  dumpRate: number;
+  medianExitMin: number | null;
+  avgUsd: number;
+  roi: number | null;
+  pnlUsd: number | null;
+  ringId?: string;
+  watched: boolean;
+  lastSeen: number;
+}
+
+export interface SniperRing {
+  id: string;
+  name: string;
+  chain: string;
+  members: string[];
+  sharedLaunches: number;
+  sameBlockRate: number;
+  /** Fraction of shared launches where members exited (or held) together. */
+  cohesion: number;
+  intention: RingIntention;
+  medianExitSpreadMin: number | null;
+  pnlUsd: number;
+  lastSeen: number;
+  recent: { pairId: string; symbol: string; ts: number }[];
+}
+
+export interface SniperLink {
+  chain: string;
+  a: string;
+  b: string;
+  shared: number;
+  sameBlock: number;
+  jaccard: number;
+}
+
+export interface SnipersResponse {
+  windowSec: number;
+  launches: Launch[];
+  profiles: SniperProfile[];
+  rings: SniperRing[];
+  links: SniperLink[];
+  watchlist: { chain: string; wallet: string; label?: string }[];
+}
+
+/** One buy/sell by a tracked wallet, streamed for the laser view. */
+export interface Shot {
+  id: string;
+  ts: number;
+  chain: string;
+  wallet: string;
+  kind: 'buy' | 'sell';
+  usd: number;
+  pairId: string;
+  symbol: string;
+  dex: string;
+  token: string;
+  delaySec: number;
+  sniper: boolean;
+  ringId?: string;
 }

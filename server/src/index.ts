@@ -8,7 +8,8 @@ import { AlertEngine } from './engine/alerts.ts';
 import { DemoMarket } from './engine/demo-sim.ts';
 import { flowsSource, getChainDetail, getFlows } from './engine/flows.ts';
 import { Ledger } from './engine/ledger.ts';
-import { LiveScanner } from './engine/scanner.ts';
+import { LiveScanner, type TradeSink } from './engine/scanner.ts';
+import { SniperEngine } from './engine/snipers.ts';
 import { sourceHealth } from './http.ts';
 import { notifyChannels } from './notify.ts';
 
@@ -25,8 +26,14 @@ const getSettings = () => settings;
 
 const ledger = new Ledger(db, ROI_WINDOW_DAYS, getSettings);
 const alerts = new AlertEngine(db, ledger, getSettings);
-if (memeMode === 'demo') new DemoMarket(ledger, alerts).start();
-else new LiveScanner(ledger, alerts).start();
+const snipers = new SniperEngine(db, ledger, alerts, getSettings);
+ledger.extraFlags = (chain, wallet) => (snipers.isSniper(chain, wallet) ? ['sniper'] : []);
+const onTrades: TradeSink = (pair, fresh, now) => {
+  alerts.onTrades(pair, fresh, now);
+  snipers.onTrades(pair, fresh, now);
+};
+if (memeMode === 'demo') new DemoMarket(ledger, alerts, onTrades, () => snipers.compute()).start();
+else new LiveScanner(ledger, onTrades).start();
 
 const app = express();
 app.use(express.json());
@@ -69,7 +76,7 @@ app.get('/api/pairs', wrap((req) => {
   const maxAge = Number(req.query.maxAgeHours ?? 24);
   const pairs = ledger.pools({ chains, sinceCreated: Date.now() - maxAge * 3_600_000, limit: 400 });
   const smart = ledger.smartBuyers(pairs.map((p) => p.id), settings);
-  return pairs.map((p) => ({ ...p, smartWallets: smart.get(p.id) ?? [] }));
+  return pairs.map((p) => ({ ...p, smartWallets: smart.get(p.id) ?? [], snipe: snipers.summary(p.id) }));
 }));
 
 app.get('/api/traders', wrap((req) => {
@@ -101,6 +108,16 @@ app.delete('/api/watchlist/:chain/:wallet', wrap((req) => {
   return { ok: true };
 }));
 
+app.get('/api/snipers', wrap((req) => snipers.response({ chains: listOf(req.query.chains) })));
+app.get('/api/snipers/shots', wrap(() => snipers.recentShots()));
+
+app.post('/api/watchlist/bulk', wrap((req, res) => {
+  const { chain, wallets, label } = req.body ?? {};
+  if (!MEME_CHAINS.some((c) => c.id === chain) || !Array.isArray(wallets)) return res.status(400).json({ error: 'chain and wallets required' });
+  wallets.slice(0, 50).forEach((w: unknown, i: number) => typeof w === 'string' && w.length >= 20 && ledger.addWatch(chain, w, typeof label === 'string' ? `${label} #${i + 1}` : undefined));
+  return { ok: true };
+}));
+
 app.get('/api/alerts', wrap(() => alerts.list()));
 
 app.get('/api/settings', wrap(() => settings));
@@ -118,6 +135,10 @@ app.put('/api/settings', wrap((req) => {
     clusterSize: n('clusterSize', 2, 50) as number,
     clusterWindowMin: n('clusterWindowMin', 1, 24 * 60) as number,
     includeWatchlist: typeof b.includeWatchlist === 'boolean' ? b.includeWatchlist : settings.includeWatchlist,
+    sniperWindowSec: n('sniperWindowSec', 0.5, 60) as number,
+    excludeSnipers: typeof b.excludeSnipers === 'boolean' ? b.excludeSnipers : settings.excludeSnipers,
+    ringAlerts: typeof b.ringAlerts === 'boolean' ? b.ringAlerts : settings.ringAlerts,
+    ringMinMembers: n('ringMinMembers', 2, 50) as number,
     telegram: typeof b.telegram === 'boolean' ? b.telegram : settings.telegram,
     discord: typeof b.discord === 'boolean' ? b.discord : settings.discord,
   };
@@ -140,9 +161,11 @@ app.get('/api/stream', (req, res) => {
   res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
   res.write(': connected\n\n');
   const off = alerts.subscribe((a) => res.write(`event: alert\ndata: ${JSON.stringify(a)}\n\n`));
+  const offShots = snipers.subscribe((s) => res.write(`event: shot\ndata: ${JSON.stringify(s)}\n\n`));
   const ping = setInterval(() => res.write(': ping\n\n'), 25_000);
   req.on('close', () => {
     off();
+    offShots();
     clearInterval(ping);
   });
 });

@@ -1,4 +1,4 @@
-import type { Alert, AlertSettings, ChainDetail, FlowWindow, FlowsResponse, Pair, StatusResponse, TraderStats, WalletDetail } from '../../../shared/types.ts';
+import type { Alert, AlertSettings, Shot, SnipersResponse, ChainDetail, FlowWindow, FlowsResponse, Pair, StatusResponse, TraderStats, WalletDetail } from '../../../shared/types.ts';
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, { ...init, headers: { 'content-type': 'application/json', ...init?.headers } });
@@ -18,6 +18,9 @@ export const api = {
   wallet: (chain: string, wallet: string) => req<WalletDetail>(`/api/wallets/${chain}/${wallet}`),
   watch: (chain: string, wallet: string, label?: string) => req('/api/watchlist', { method: 'POST', body: JSON.stringify({ chain, wallet, label }) }),
   unwatch: (chain: string, wallet: string) => req(`/api/watchlist/${chain}/${wallet}`, { method: 'DELETE' }),
+  snipers: (chains: string[]) => req<SnipersResponse>(`/api/snipers?chains=${chains.join(',')}`),
+  shots: () => req<Shot[]>('/api/snipers/shots'),
+  watchMany: (chain: string, wallets: string[], label?: string) => req('/api/watchlist/bulk', { method: 'POST', body: JSON.stringify({ chain, wallets, label }) }),
   alerts: () => req<Alert[]>('/api/alerts'),
   settings: () => req<AlertSettings>('/api/settings'),
   saveSettings: (s: AlertSettings) => req<AlertSettings>('/api/settings', { method: 'PUT', body: JSON.stringify(s) }),

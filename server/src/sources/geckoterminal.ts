@@ -32,6 +32,7 @@ export interface GtTrade {
   usd: number;
   priceUsd: number;
   ts: number;
+  block: number | null;
 }
 
 type Rel = { data?: { id?: string } };
@@ -116,6 +117,7 @@ export async function poolTrades(network: string, pool: string, baseToken: strin
       usd: num(a.volume_in_usd),
       priceUsd: num(kind === 'buy' ? a.price_to_in_usd : a.price_from_in_usd),
       ts: Date.parse(a.block_timestamp) || Date.now(),
+      block: a.block_number != null ? num(a.block_number) : null,
     });
   }
   return out;

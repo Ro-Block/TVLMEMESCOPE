@@ -11,12 +11,15 @@ export function MemescopePage({ chains, source, onWallet }: { chains: MemeChain[
   const [sel, setSel] = useStored<string[]>('scope.chains', chains.map((c) => c.id));
   const [maxAge, setMaxAge] = useStored<number>('scope.maxAge', 24);
   const [minLiq, setMinLiq] = useStored<number>('scope.minLiq', 0);
+  const [hideSniped, setHideSniped] = useStored('scope.hideSniped', false);
   const active = sel.filter((s) => chains.some((c) => c.id === s));
   const { data } = usePoll(() => api.pairs(active, maxAge), [active.join(','), maxAge], 8_000);
   const now = useNow(1_000);
   const seen = useRef(new Set<string>());
 
-  const pairs = (data ?? []).filter((p) => p.liquidity >= minLiq);
+  // "Heavily sniped" = snipers took over half the opening buy volume, or a known ring was in.
+  const heavy = (p: Pair) => !!p.snipe && (p.snipe.share > 0.5 || p.snipe.rings > 0);
+  const pairs = (data ?? []).filter((p) => p.liquidity >= minLiq && (!hideSniped || !heavy(p)));
   const fresh = pairs.filter((p) => now - p.createdAt < 60 * 60_000).sort((a, b) => b.createdAt - a.createdAt);
   const heating = [...pairs].filter((p) => p.volume.h1 > 0).sort((a, b) => b.volume.h1 - a.volume.h1).slice(0, 40);
   const smart = pairs
@@ -54,6 +57,9 @@ export function MemescopePage({ chains, source, onWallet }: { chains: MemeChain[
           </button>
         ))}
         <div className="spacer" />
+        <label className="secondary" style={{ fontSize: 13, display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+          <input type="checkbox" checked={hideSniped} onChange={(e) => setHideSniped(e.target.checked)} /> Hide sniped / bundled
+        </label>
         <label className="secondary" style={{ fontSize: 13 }}>
           Min liquidity{' '}
           <select value={minLiq} onChange={(e) => setMinLiq(+e.target.value)}>
@@ -122,6 +128,16 @@ function PairRow({ p, now, flash, onWallet }: { p: Pair; now: number; flash: boo
             <b className="up">{p.txns.h1.buys}</b>/<b className="down">{p.txns.h1.sells}</b>
           </span>
         </div>
+        {p.snipe && p.snipe.snipers > 0 && (
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 5 }}>
+            <span className={`snipe-tag ${p.snipe.share > 0.5 || p.snipe.rings ? 'heavy' : ''}`} title="Buys within the sniper window of pair creation">
+              🎯 {p.snipe.snipers} sniper{p.snipe.snipers > 1 ? 's' : ''} · {Math.round(p.snipe.share * 100)}% of opening buys
+            </span>
+            {p.snipe.bundled > 0 && <span className="snipe-tag heavy" title="Wallets that landed in the same block">⛓ {p.snipe.bundled} bundled</span>}
+            {p.snipe.rings > 0 && <span className="snipe-tag heavy">ring × {p.snipe.rings}</span>}
+            {p.snipe.dumped && <span className="snipe-tag heavy">▼ snipers dumped</span>}
+          </div>
+        )}
         {p.smartWallets.length > 0 && (
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 5 }}>
             <span className="smart-tag">{p.smartWallets.some((w) => w.tier === 'whale') ? '🐋' : '🧠'} {p.smartWallets.length} smart</span>

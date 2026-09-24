@@ -12,8 +12,9 @@ const FLAG_INFO: Record<string, string> = {
   'small-size': 'Less than $2K deployed in the window',
   'hl-perps-30d': 'Seeded from the Hyperliquid perps leaderboard (30d ROI)',
   manual: 'Added to your watchlist by hand',
+  sniper: 'Usually buys within seconds of pair creation (see Sniper radar)',
 };
-const BAD = new Set(['bot-like', 'one-hit']);
+const BAD = new Set(['bot-like', 'one-hit', 'sniper']);
 
 export function TierLabel({ tier }: { tier: TraderStats['tier'] }) {
   if (tier === 'whale') return <span className="tier">🐋 Whale</span>;

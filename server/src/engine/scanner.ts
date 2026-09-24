@@ -3,8 +3,10 @@ import { MEME_CHAINS, SCAN, type MemeChainMeta } from '../config.ts';
 import * as dune from '../sources/dune.ts';
 import * as gt from '../sources/geckoterminal.ts';
 import * as hl from '../sources/hyperliquid.ts';
-import type { AlertEngine } from './alerts.ts';
 import type { Ledger, SeedStats } from './ledger.ts';
+import type { LedgerTrade } from './roi.ts';
+
+export type TradeSink = (pair: Pair, fresh: LedgerTrade[], now?: number) => void;
 
 export function toPair(p: gt.GtPool, chain: MemeChainMeta, trending: boolean): Pair {
   return {
@@ -39,7 +41,7 @@ export class LiveScanner {
 
   constructor(
     private ledger: Ledger,
-    private alerts: AlertEngine,
+    private onTrades: TradeSink,
   ) {}
 
   /** Returns false if GeckoTerminal is unreachable. Warns about configured networks GT doesn't list. */
@@ -88,7 +90,12 @@ export class LiveScanner {
     const now = Date.now();
     const candidates = this.ledger.pools({ sinceCreated: now - 48 * 3_600_000, limit: 500 }).filter((p) => p.trending || now - p.createdAt < 24 * 3_600_000);
     const ranked = candidates
-      .map((p) => ({ p, prio: Math.log1p(p.volume.h1 + p.volume.m5 * 6) * Math.min(30, (now - (this.lastPolled.get(p.id) ?? 0)) / 60_000) }))
+      .map((p) => {
+        const since = Math.min(30, (now - (this.lastPolled.get(p.id) ?? 0)) / 60_000);
+        // Brand-new pairs jump the queue so their opening (sniper) trades are captured before they scroll out of the 300-trade window.
+        const launchBoost = now - p.createdAt < 15 * 60_000 ? 100 : 1;
+        return { p, prio: (Math.log1p(p.volume.h1 + p.volume.m5 * 6) + 1) * since * launchBoost };
+      })
       .sort((a, b) => b.prio - a.prio)
       .slice(0, SCAN.poolsPerCycle);
 
@@ -98,7 +105,7 @@ export class LiveScanner {
         const trades = await gt.poolTrades(chain.gt, p.address, p.baseAddress);
         this.lastPolled.set(p.id, Date.now());
         const fresh = this.ledger.insertTrades(trades.map((t) => ({ ...t, chain: p.chain, pool: p.address })));
-        if (fresh.length) this.alerts.onTrades(p, fresh);
+        if (fresh.length) this.onTrades(p, fresh);
       } catch (e) {
         console.warn(`[scanner] trades ${p.id}: ${(e as Error).message}`);
       }

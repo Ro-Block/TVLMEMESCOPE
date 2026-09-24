@@ -17,6 +17,8 @@ export class Ledger {
   private watch = new Map<string, { label?: string }>();
   /** Lets the demo simulator run on its own clock. */
   now: () => number = Date.now;
+  /** Extra per-wallet flags from other engines (e.g. `sniper`). */
+  extraFlags: (chain: string, wallet: string) => string[] = () => [];
 
   constructor(
     private db: Db,
@@ -54,12 +56,12 @@ export class Ledger {
 
   /** Inserts trades, returning only the ones not seen before. */
   insertTrades(trades: (LedgerTrade & { tx: string })[]): (LedgerTrade & { tx: string })[] {
-    const stmt = this.db.prepare('INSERT OR IGNORE INTO trades (chain, pool, tx, wallet, kind, token, qty, usd, ts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    const stmt = this.db.prepare('INSERT OR IGNORE INTO trades (chain, pool, tx, wallet, kind, token, qty, usd, ts, block) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
     const fresh: (LedgerTrade & { tx: string })[] = [];
     tx(this.db, () => {
       for (const t of trades) {
         const w = normWallet(t.chain, t.wallet);
-        const r = stmt.run(t.chain, t.pool, t.tx, w, t.kind, t.token, t.qty, t.usd, t.ts);
+        const r = stmt.run(t.chain, t.pool, t.tx, w, t.kind, t.token, t.qty, t.usd, t.ts, t.block ?? null);
         if (r.changes) fresh.push({ ...t, wallet: w });
       }
     });
@@ -107,6 +109,10 @@ export class Ledger {
     this.cache = null;
   }
 
+  watchlist(): { chain: string; wallet: string; label?: string }[] {
+    return [...this.watch].map(([k, v]) => ({ chain: k.slice(0, k.indexOf(':')), wallet: k.slice(k.indexOf(':') + 1), label: v.label }));
+  }
+
   // ---------- stats ----------
 
   private prices(): { px: Map<string, number>; sym: Map<string, string> } {
@@ -135,6 +141,7 @@ export class Ledger {
       const { stats, positions } = walletStats(group[0].wallet, group[0].chain, group, (t) => px.get(t), sym);
       const top = Math.max(0, ...positions.map((p) => p.realizedUsd + p.unrealizedUsd));
       const { score, flags } = legitScore(stats, top);
+      flags.push(...this.extraFlags(stats.chain, stats.wallet));
       const k = key(stats.chain, stats.wallet);
       const s: TraderStats = { ...stats, legitScore: score, flags, source: 'ledger', tier: 'none', watched: this.watch.has(k), label: this.watch.get(k)?.label };
       s.tier = tierFor(s, minLegit);
@@ -190,6 +197,7 @@ export class Ledger {
     if (!s) return false;
     if (s.watched && st.includeWatchlist) return true;
     if (s.flags.includes('bot-like')) return false;
+    if (st.excludeSnipers && s.flags.includes('sniper')) return false;
     // Hyperliquid seeds are vetted by the leaderboard filter and have no meme-token sample.
     if (s.source === 'hyperliquid') return s.legitScore >= st.minLegitScore;
     return s.legitScore >= st.minLegitScore && s.roi >= st.minRoi && s.tokens >= st.minTokens;

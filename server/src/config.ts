@@ -50,6 +50,9 @@ const wanted = (env.MEME_CHAINS ?? 'solana,base,robinhood,bsc,hyperevm').split('
 export const MEME_CHAINS = ALL_MEME_CHAINS.filter((c) => wanted.includes(c.id));
 export const memeChain = (id: string) => ALL_MEME_CHAINS.find((c) => c.id === id);
 
+/** Typical block / slot time, used by the simulator to assign block numbers. */
+export const BLOCK_MS: Record<string, number> = { solana: 400, base: 2_000, bsc: 750, hyperevm: 1_000, robinhood: 250 };
+
 export const DEFAULT_ALERT_SETTINGS: AlertSettings = {
   chains: MEME_CHAINS.map((c) => c.id),
   minBuyUsd: 1_000,
@@ -60,6 +63,10 @@ export const DEFAULT_ALERT_SETTINGS: AlertSettings = {
   clusterSize: 3,
   clusterWindowMin: 30,
   includeWatchlist: true,
+  sniperWindowSec: 3,
+  excludeSnipers: true,
+  ringAlerts: true,
+  ringMinMembers: 2,
   telegram: true,
   discord: true,
 };
