@@ -9,10 +9,10 @@
   },
   "scripts": {
     "dev": "concurrently -k -n api,web -c cyan,magenta \"npm:dev:api\" \"npm:dev:web\"",
-    "dev:api": "tsx watch server/src/index.ts",
+    "dev:api": "tsx watch --env-file-if-exists=.env server/src/index.ts",
     "dev:web": "vite",
     "build": "tsc -p tsconfig.json --noEmit && vite build",
-    "start": "NODE_ENV=production tsx server/src/index.ts",
+    "start": "tsx --env-file-if-exists=.env server/src/index.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --test --import tsx server/test/*.test.ts",
     "snapshot": "vite build && node scripts/snapshot.mjs"

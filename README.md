@@ -26,7 +26,7 @@ Snipers are kept out of smart money by default: a wallet whose median entry over
 
 ```bash
 npm install
-cp .env.example .env        # optional
+cp .env.example .env        # optional; read automatically on start
 npm run dev                 # API on :8787, UI on http://localhost:5173
 ```
 
