@@ -97,7 +97,7 @@ a:hover { text-decoration: underline; }
 
 /* ---------- shell ---------- */
 .topbar {
-  position: sticky; top: 0; z-index: 20;
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
   display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
   padding: 10px 24px; background: color-mix(in srgb, var(--bg) 88%, transparent);
   backdrop-filter: blur(10px); border-bottom: 1px solid var(--border);

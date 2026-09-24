@@ -8,6 +8,7 @@ import { FlowsPage } from './pages/FlowsPage.tsx';
 import { MemescopePage } from './pages/MemescopePage.tsx';
 import { SnipersPage } from './pages/SnipersPage.tsx';
 import { shotStore } from './lib/shots.ts';
+import { isStatic, onStaticAlert, startReplay } from './lib/static.ts';
 import { TradersPage, WalletDrawer } from './pages/TradersPage.tsx';
 
 type Tab = 'flows' | 'scope' | 'snipers' | 'traders' | 'alerts';
@@ -60,10 +61,7 @@ export function App() {
   useEffect(() => {
     void api.alerts().then(setAlerts);
     void api.shots().then(shotStore.seed).catch(() => {});
-    const es = new EventSource('/api/stream');
-    es.addEventListener('shot', (ev) => shotStore.push(JSON.parse((ev as MessageEvent).data)));
-    es.addEventListener('alert', (ev) => {
-      const a = JSON.parse((ev as MessageEvent).data) as Alert;
+    const onAlert = (a: Alert) => {
       setAlerts((xs) => [a, ...xs.filter((x) => x.id !== a.id)].slice(0, 300));
       setToasts((xs) => [a, ...xs].slice(0, 4));
       setTimeout(() => setToasts((xs) => xs.filter((x) => x.id !== a.id)), 9_000);
@@ -72,7 +70,15 @@ export function App() {
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && document.hidden) {
         new Notification(a.kind === 'cluster' ? 'Smart money cluster' : a.kind === 'ring' ? 'Sniper ring' : 'Whale buy', { body: a.message, tag: a.id });
       }
-    });
+    };
+    if (isStatic()) {
+      const stop = startReplay(shotStore.push, onAlert);
+      const off = onStaticAlert(onAlert);
+      return () => (stop(), off());
+    }
+    const es = new EventSource('/api/stream');
+    es.addEventListener('shot', (ev) => shotStore.push(JSON.parse((ev as MessageEvent).data)));
+    es.addEventListener('alert', (ev) => onAlert(JSON.parse((ev as MessageEvent).data) as Alert));
     return () => es.close();
   }, []);
 
@@ -97,6 +103,7 @@ export function App() {
           ))}
         </nav>
         <div className="spacer" />
+        {isStatic() && <span className="badge demo" title="Recorded from the built-in simulator; run the app locally for live data">Demo snapshot</span>}
         {status && <span className="note mono">{status.ledger.trades.toLocaleString()} trades · {status.ledger.wallets.toLocaleString()} wallets</span>}
         <button className="icon-btn" aria-label="Toggle theme" title={`Theme: ${theme}`} onClick={() => setTheme(theme === 'system' ? 'dark' : theme === 'dark' ? 'light' : 'system')}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9" /><path d="M12 3v18" /><path d="M12 3a9 9 0 0 1 0 18" fill="currentColor" /></svg>

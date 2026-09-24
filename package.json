@@ -14,7 +14,8 @@
     "build": "tsc -p tsconfig.json --noEmit && vite build",
     "start": "NODE_ENV=production tsx server/src/index.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --test --import tsx server/test/*.test.ts"
+    "test": "node --test --import tsx server/test/*.test.ts",
+    "snapshot": "vite build && node scripts/snapshot.mjs"
   },
   "dependencies": {
     "d3-array": "^3.2.4",

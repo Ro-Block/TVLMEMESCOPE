@@ -1,6 +1,9 @@
 import type { Alert, AlertSettings, Shot, SnipersResponse, ChainDetail, FlowWindow, FlowsResponse, Pair, StatusResponse, TraderStats, WalletDetail } from '../../../shared/types.ts';
 
+import { isStatic, staticReq } from './static.ts';
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
+  if (isStatic()) return staticReq(path, init) as Promise<T>;
   const res = await fetch(path, { ...init, headers: { 'content-type': 'application/json', ...init?.headers } });
   if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `${res.status}`);
   return res.json() as Promise<T>;

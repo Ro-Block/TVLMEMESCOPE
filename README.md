@@ -30,7 +30,9 @@ cp .env.example .env        # optional
 npm run dev                 # API on :8787, UI on http://localhost:5173
 ```
 
-Production: `npm run build && npm start`. The API serves the built UI on `PORT`.
+Production: `npm run build && npm start`.
+
+Standalone demo page: `npm run snapshot` runs the simulator for about 45 seconds, records the API responses and writes one self-contained `dist-static/index.html`. That page needs no server: requests are answered from the recorded data, and sniper shots and alerts are replayed. The API serves the built UI on `PORT`.
 
 Requires **Node ≥ 22.13** (uses the built-in `node:sqlite`, no native modules).
 
