@@ -294,16 +294,11 @@ tbody tr[aria-selected='true'] { background: var(--surface-2); }
 .brand-mark .moon { transform-origin: 11px 11px; animation: orbit 6s linear infinite; }
 @keyframes orbit { to { transform: rotate(360deg); } }
 
-.space { position: relative; border-radius: 12px; overflow: hidden; background: var(--space-bg); }
-.space svg { display: block; width: 100%; height: auto; }
+.space { position: relative; border-radius: 12px; overflow: hidden; background: var(--space-bg); aspect-ratio: 760 / 620; }
+.space canvas, .space svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .space .orbit-label { fill: var(--space-muted); font-size: 11px; font-family: var(--mono); paint-order: stroke; stroke: var(--space-bg); stroke-width: 4px; }
-.space .sun-value { fill: #2a1602; font-family: var(--display); font-size: 17px; font-weight: 700; }
-.space .sun-label { fill: #5a3408; font-size: 10px; font-weight: 600; letter-spacing: 0.04em; }
-.space .corona { transform-box: fill-box; transform-origin: center; animation: corona 5s ease-in-out infinite; }
-@keyframes corona { 50% { transform: scale(1.08); opacity: 0.8; } }
-.space .twinkle { animation: twinkle 3.2s ease-in-out infinite; }
-@keyframes twinkle { 50% { opacity: 0.1; } }
-.space .comet { stroke-linecap: round; stroke-dasharray: 2 13; animation: flow 1.6s linear infinite; }
+.space .sun-value { fill: #ffe3a8; font-family: var(--display); font-size: 18px; font-weight: 700; paint-order: stroke; stroke: rgb(6 9 19 / 85%); stroke-width: 4px; }
+.space .sun-label { fill: var(--space-muted); font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em; paint-order: stroke; stroke: rgb(6 9 19 / 85%); stroke-width: 3px; }
 .space .planet { cursor: pointer; outline: none; }
 .space .planet-name { fill: var(--space-text); font-size: 12px; font-weight: 600; paint-order: stroke; stroke: var(--space-bg); stroke-width: 3px; }
 .space .planet-net { fill: var(--space-muted); font-size: 10.5px; font-family: var(--mono); paint-order: stroke; stroke: var(--space-bg); stroke-width: 3px; }
@@ -314,7 +309,7 @@ tbody tr[aria-selected='true'] { background: var(--surface-2); }
 .space-key { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--text-secondary); }
 .space-key span { display: inline-flex; align-items: center; gap: 6px; }
 @media (prefers-reduced-motion: reduce) {
-  .space .corona, .space .twinkle, .space .comet, .space .target-ring, .brand-mark .moon { animation: none; }
+  .space .target-ring, .brand-mark .moon { animation: none; }
 }
 /* On phones the map is scaled down ~2x: bigger names, drop the per-planet net (it's in the tooltip and table). */
 .space { container-type: inline-size; }
@@ -323,6 +318,5 @@ tbody tr[aria-selected='true'] { background: var(--surface-2); }
   .space .planet-net { display: none; }
   .space .orbit-label { font-size: 19px; }
   .space .sun-value { font-size: 24px; }
-  .space .sun-label { display: none; }
   .space-btn { font-size: 11px; padding: 3px 8px; right: 6px; bottom: 6px; }
 }
