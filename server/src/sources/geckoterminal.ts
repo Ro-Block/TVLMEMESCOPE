@@ -15,6 +15,7 @@ export interface GtPool {
   baseAddress: string;
   baseSymbol: string;
   quoteSymbol: string;
+  imageUrl?: string;
   priceUsd: number;
   mcap: number;
   liquidity: number;
@@ -49,6 +50,9 @@ interface GtList {
 /** GeckoTerminal ids look like `solana_<address>`; strip the network prefix. */
 const stripNet = (id: string | undefined) => (id ? id.slice(id.indexOf('_') + 1) : '');
 
+/** GeckoTerminal returns a 'missing.png' placeholder for tokens without a logo. */
+const goodImage = (u: unknown) => (typeof u === 'string' && /^https?:\/\//.test(u) && !/missing/i.test(u) ? u : undefined);
+
 function mapPools(network: string, res: GtList): GtPool[] {
   const inc = new Map((res.included ?? []).map((r) => [r.id, r.attributes]));
   return res.data.map((p) => {
@@ -66,6 +70,7 @@ function mapPools(network: string, res: GtList): GtPool[] {
       baseAddress: stripNet(baseId),
       baseSymbol: String(inc.get(baseId ?? '')?.symbol ?? nBase ?? '?'),
       quoteSymbol: String(inc.get(quoteId ?? '')?.symbol ?? nQuote ?? '?'),
+      imageUrl: goodImage(inc.get(baseId ?? '')?.image_url),
       priceUsd: num(a.base_token_price_usd),
       mcap: num(a.market_cap_usd) || num(a.fdv_usd),
       liquidity: num(a.reserve_in_usd),

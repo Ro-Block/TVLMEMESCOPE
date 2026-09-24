@@ -1,5 +1,6 @@
 import { useMemo, useRef } from 'react';
 import type { MemeChain, Pair } from '../../../shared/types.ts';
+import { LaunchpadTag, TokenAvatar } from '../components/TokenAvatar.tsx';
 import { api } from '../lib/api.ts';
 import { chainColor } from '../lib/colors.ts';
 import { age, pct, price, shortAddr, usd } from '../lib/format.ts';
@@ -12,6 +13,7 @@ export function MemescopePage({ chains, source, onWallet }: { chains: MemeChain[
   const [maxAge, setMaxAge] = useStored<number>('scope.maxAge', 24);
   const [minLiq, setMinLiq] = useStored<number>('scope.minLiq', 0);
   const [hideSniped, setHideSniped] = useStored('scope.hideSniped', false);
+  const [pad, setPad] = useStored('scope.launchpad', '');
   const active = sel.filter((s) => chains.some((c) => c.id === s));
   const { data } = usePoll(() => api.pairs(active, maxAge), [active.join(','), maxAge], 8_000);
   const now = useNow(1_000);
@@ -19,7 +21,8 @@ export function MemescopePage({ chains, source, onWallet }: { chains: MemeChain[
 
   // "Heavily sniped" = snipers took over half the opening buy volume, or a known ring was in.
   const heavy = (p: Pair) => !!p.snipe && (p.snipe.share > 0.5 || p.snipe.rings > 0);
-  const pairs = (data ?? []).filter((p) => p.liquidity >= minLiq && (!hideSniped || !heavy(p)));
+  const launchpads = [...new Set((data ?? []).map((p) => p.launchpad).filter((x): x is string => !!x))].sort();
+  const pairs = (data ?? []).filter((p) => p.liquidity >= minLiq && (!hideSniped || !heavy(p)) && (!pad || (pad === '-' ? !p.launchpad : p.launchpad === pad)));
   const fresh = pairs.filter((p) => now - p.createdAt < 60 * 60_000).sort((a, b) => b.createdAt - a.createdAt);
   const heating = [...pairs].filter((p) => p.volume.h1 > 0).sort((a, b) => b.volume.h1 - a.volume.h1).slice(0, 40);
   const smart = pairs
@@ -59,6 +62,14 @@ export function MemescopePage({ chains, source, onWallet }: { chains: MemeChain[
         <div className="spacer" />
         <label className="secondary" style={{ fontSize: 13, display: 'inline-flex', gap: 6, alignItems: 'center' }}>
           <input type="checkbox" checked={hideSniped} onChange={(e) => setHideSniped(e.target.checked)} /> Hide sniped / bundled
+        </label>
+        <label className="secondary" style={{ fontSize: 13 }}>
+          Launchpad{' '}
+          <select value={pad} onChange={(e) => setPad(e.target.value)}>
+            <option value="">All</option>
+            {launchpads.map((l) => <option key={l} value={l}>{l}</option>)}
+            <option value="-">Unknown / direct DEX</option>
+          </select>
         </label>
         <label className="secondary" style={{ fontSize: 13 }}>
           Min liquidity{' '}
@@ -111,14 +122,12 @@ function PairRow({ p, now, flash, onWallet }: { p: Pair; now: number; flash: boo
   const ch = p.change.h1;
   return (
     <div className={`pair ${flash ? 'flash' : ''}`}>
-      <div className="avatar" style={{ background: `color-mix(in srgb, ${chainColor(p.chain)} 70%, #000)` }} aria-hidden>
-        {p.baseSymbol.slice(0, 2)}
-        <i className="chain-dot" style={{ background: chainColor(p.chain) }} />
-      </div>
+      <TokenAvatar symbol={p.baseSymbol} imageUrl={p.imageUrl} chain={p.chain} />
       <div style={{ minWidth: 0 }}>
         <div className="pair-name">
           <b>{p.baseSymbol}</b>
           <span className="muted">/{p.quoteSymbol} · {p.dex}</span>
+          <LaunchpadTag name={p.launchpad} />
         </div>
         <div className="pair-stats">
           <span>MC <b>{usd(p.mcap)}</b></span>

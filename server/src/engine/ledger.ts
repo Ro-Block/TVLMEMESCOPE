@@ -30,7 +30,18 @@ export class Ledger {
 
   // ---------- pools ----------
 
+  /** Remembers a token logo found later (e.g. on DexScreener) and applies it to its pools. */
+  setTokenImage(chain: string, token: string, url: string) {
+    this.db.prepare('INSERT OR REPLACE INTO token_images (chain, token, url) VALUES (?, ?, ?)').run(chain, token.toLowerCase(), url);
+    for (const r of this.db.prepare('SELECT id, json FROM pools WHERE chain = ? AND lower(token) = ?').all(chain, token.toLowerCase()) as { id: string; json: string }[]) {
+      this.db.prepare('UPDATE pools SET json = ? WHERE id = ?').run(JSON.stringify({ ...JSON.parse(r.json), imageUrl: url }), r.id);
+    }
+  }
+
   upsertPools(pairs: Pair[]) {
+    // A later poll without a logo must not wipe one we already found.
+    const img = this.db.prepare('SELECT url FROM token_images WHERE chain = ? AND token = ?');
+    pairs = pairs.map((p) => (p.imageUrl ? p : { ...p, imageUrl: (img.get(p.chain, p.baseAddress.toLowerCase()) as { url: string } | undefined)?.url }));
     const stmt = this.db.prepare(`INSERT INTO pools (id, chain, address, token, symbol, created_at, price_usd, trending, updated_at, json)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET price_usd = excluded.price_usd, trending = MAX(pools.trending, excluded.trending), updated_at = excluded.updated_at, json = excluded.json`);

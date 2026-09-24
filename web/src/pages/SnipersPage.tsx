@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import type { AlertSettings, Launch, MemeChain, RingIntention, SniperRing } from '../../../shared/types.ts';
 import { LaserArena, type ShooterGroup } from '../components/LaserArena.tsx';
+import { LaunchpadTag, TokenAvatar } from '../components/TokenAvatar.tsx';
 import { api } from '../lib/api.ts';
 import { chainColor } from '../lib/colors.ts';
 import { age, pct, shortAddr, usd } from '../lib/format.ts';
@@ -194,9 +195,9 @@ export function SnipersPage({ chains, source, onWallet }: { chains: MemeChain[];
                     <tr className="clickable" aria-selected={open === l.pair.id} onClick={() => setOpen(open === l.pair.id ? null : l.pair.id)}>
                       <td>
                         <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
-                          <i className="swatch" style={{ background: chainColor(l.pair.chain), borderRadius: '50%' }} />
+                          <TokenAvatar symbol={l.pair.baseSymbol} imageUrl={l.pair.imageUrl} chain={l.pair.chain} size={30} />
                           <span>
-                            <b>{l.pair.baseSymbol}</b> <span className="muted">{l.pair.dex}</span>
+                            <b>{l.pair.baseSymbol}</b> <span className="muted">{l.pair.dex}</span> <LaunchpadTag name={l.pair.launchpad} />
                             <div className="mono muted" style={{ fontSize: 11 }}>{shortAddr(l.pair.baseAddress)}</div>
                           </span>
                         </span>

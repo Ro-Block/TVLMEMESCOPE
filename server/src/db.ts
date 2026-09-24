@@ -35,6 +35,7 @@ export function openDb(path: string): Db {
     CREATE TABLE IF NOT EXISTS alerts (id TEXT PRIMARY KEY, ts INTEGER NOT NULL, json TEXT NOT NULL);
     CREATE INDEX IF NOT EXISTS alerts_ts ON alerts (ts);
     CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, json TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS token_images (chain TEXT NOT NULL, token TEXT NOT NULL, url TEXT NOT NULL, PRIMARY KEY (chain, token));
   `);
   // Migrations for databases created by earlier versions.
   const cols = (db.prepare('PRAGMA table_info(trades)').all() as { name: string }[]).map((c) => c.name);

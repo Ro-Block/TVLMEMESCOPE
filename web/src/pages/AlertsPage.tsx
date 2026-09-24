@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Alert, AlertSettings, MemeChain, StatusResponse } from '../../../shared/types.ts';
+import { LaunchpadTag, TokenAvatar } from '../components/TokenAvatar.tsx';
 import { api } from '../lib/api.ts';
 import { chainColor } from '../lib/colors.ts';
 import { age, pct, shortAddr, timeAgo, usd } from '../lib/format.ts';
@@ -69,7 +70,9 @@ export function AlertsPage({ alerts, chains, status, sound, setSound, onWallet }
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                   <b>{a.kind === 'ring' ? `${a.wallets.length} ring wallets` : a.kind === 'cluster' ? `${a.wallets.length} smart wallets` : a.wallets[0]?.label ?? shortAddr(a.wallets[0]?.wallet ?? '')}</b>
                   <span className="secondary">bought</span>
+                  <TokenAvatar symbol={a.pair.symbol} imageUrl={a.pair.imageUrl} chain={a.chain} size={22} />
                   <b>{a.pair.symbol}</b>
+                  <LaunchpadTag name={a.pair.launchpad} />
                   <span className="badge" style={{ gap: 6 }}><i className="swatch" style={{ background: chainColor(a.chain), borderRadius: '50%' }} />{a.chain}</span>
                 </div>
                 <div className="pair-stats">

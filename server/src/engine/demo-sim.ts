@@ -3,6 +3,7 @@ import { BLOCK_MS, MEME_CHAINS, ROI_WINDOW_DAYS } from '../config.ts';
 import { fakeAddress, gauss, mulberry32, pick, type Rng } from '../rand.ts';
 import type { AlertEngine } from './alerts.ts';
 import type { TradeSink } from './scanner.ts';
+import { detectLaunchpad } from '../launchpads.ts';
 import type { Ledger } from './ledger.ts';
 import type { LedgerTrade } from './roi.ts';
 
@@ -43,6 +44,21 @@ const DEX: Record<string, string[]> = {
   robinhood: ['uniswap-v3', 'synthra'],
 };
 const QUOTE: Record<string, string> = { solana: 'SOL', base: 'WETH', bsc: 'WBNB', hyperevm: 'WHYPE', robinhood: 'WETH' };
+// Demo token art: an emoji that fits the name on a gradient, embedded as a data URI so it also
+// works in the offline snapshot.
+const ART: [RegExp, string][] = [
+  [/PEPE|FROG|BRETT|KEK/, '🐸'], [/DOGE|WIF|NEIRO|BONK/, '🐶'], [/CAT|MEOW|TOSHI|MOG/, '🐱'], [/MOON/, '🌕'], [/TRUMP/, '🦅'],
+  [/HOOD|STONK/, '📈'], [/APE/, '🦍'], [/PUMP/, '🚀'], [/HYPE/, '⚡'], [/BASED/, '🔵'], [/SIGMA|GIGA|CHAD/, '🗿'], [/GOAT/, '🐐'],
+  [/BULL/, '🐂'], [/YOLO/, '🎲'], [/TENDIE/, '🍗'], [/CLANK/, '🤖'], [/ZEREBRO/, '🧠'], [/WAGMI/, '🤝'],
+];
+function tokenArt(sym: string, r: Rng): string {
+  const emoji = ART.find(([re]) => re.test(sym))?.[1] ?? '🪙';
+  const h1 = Math.floor(r() * 360);
+  const h2 = (h1 + 40 + Math.floor(r() * 80)) % 360;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(${h1},70%,55%)"/><stop offset="1" stop-color="hsl(${h2},70%,35%)"/></linearGradient></defs><rect width="64" height="64" fill="url(#g)"/><text x="32" y="44" font-size="34" text-anchor="middle">${emoji}</text></svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
 const HANDLES = ['cupsey', 'orangie', 'ansem.eth', 'frankdegods', 'cented', 'loopierr', 'daumen', 'waddles', 'jidn', 'euris', 'mitch', 'kev', 'gake', 'bastille', 'nach'];
 
 export class DemoMarket {
@@ -99,15 +115,19 @@ export class DemoMarket {
     const r = this.rng;
     const sym = pick(r, WORDS) + (r() < 0.4 ? pick(r, WORDS).slice(0, 3) : '');
     const address = fakeAddress(r, chain);
-    const token = fakeAddress(r, chain);
+    let token = fakeAddress(r, chain);
+    const dex = pick(r, DEX[chain] ?? ['dex']);
+    // Launchpads grind vanity suffixes into their mints: pump.fun …pump, letsbonk …bonk, four.meme …4444.
+    if (chain === 'solana') token = token.slice(0, -4) + (r() < 0.65 ? 'pump' : r() < 0.5 ? 'bonk' : token.slice(-4));
+    if (chain === 'bsc' && dex === 'four-meme') token = token.slice(0, -4) + '4444';
     // Heavy-tailed outcome: most pairs die, a few run 10-100x.
     const peak = Math.max(1.05, Math.exp(0.2 + gauss(r) * 1.1));
     const life = (compressed ? 20 * 60_000 + r() * 90 * 60_000 : 6 * HOUR + r() * 60 * HOUR);
     const tPeak = life * (0.08 + r() * 0.35);
     const p0 = 5e-5 * (0.5 + r()); // ~$25-75K launch mcap
     const pair: Pair = {
-      id: `${chain}:${address}`, chain, address, dex: pick(r, DEX[chain] ?? ['dex']), name: `${sym} / ${QUOTE[chain] ?? 'USD'}`,
-      baseSymbol: sym, baseAddress: token, quoteSymbol: QUOTE[chain] ?? 'USD', createdAt, priceUsd: p0, mcap: p0 * SUPPLY,
+      id: `${chain}:${address}`, chain, address, dex, name: `${sym} / ${QUOTE[chain] ?? 'USD'}`,
+      baseSymbol: sym, baseAddress: token, imageUrl: r() < 0.85 ? tokenArt(sym, r) : undefined, launchpad: detectLaunchpad(chain, dex, token), quoteSymbol: QUOTE[chain] ?? 'USD', createdAt, priceUsd: p0, mcap: p0 * SUPPLY,
       liquidity: p0 * SUPPLY * 0.12, volume: { m5: 0, h1: 0, h24: 0 }, txns: { h1: { buys: 0, sells: 0 }, h24: { buys: 0, sells: 0 } },
       change: { m5: 0, h1: 0, h24: 0 }, trending: false, smartWallets: [], url: '',
     };

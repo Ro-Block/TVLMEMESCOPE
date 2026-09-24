@@ -50,7 +50,7 @@ export class AlertEngine {
     const buys = new Map<string, number>();
     for (const t of fresh) if (t.kind === 'buy') buys.set(t.wallet, (buys.get(t.wallet) ?? 0) + t.usd);
 
-    const pairInfo = { id: pair.id, name: pair.name, symbol: pair.baseSymbol, address: pair.baseAddress, ageMin, mcap: pair.mcap, liquidity: pair.liquidity, url: pair.url };
+    const pairInfo = { id: pair.id, name: pair.name, symbol: pair.baseSymbol, address: pair.baseAddress, ageMin, mcap: pair.mcap, liquidity: pair.liquidity, url: pair.url, imageUrl: pair.imageUrl, launchpad: pair.launchpad };
 
     for (const [wallet, amount] of buys) {
       if (amount < st.minBuyUsd) continue;

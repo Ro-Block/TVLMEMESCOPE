@@ -1,5 +1,7 @@
 import type { Pair } from '../../../shared/types.ts';
 import { MEME_CHAINS, SCAN, type MemeChainMeta } from '../config.ts';
+import { detectLaunchpad } from '../launchpads.ts';
+import * as ds from '../sources/dexscreener.ts';
 import * as dune from '../sources/dune.ts';
 import * as gt from '../sources/geckoterminal.ts';
 import * as hl from '../sources/hyperliquid.ts';
@@ -18,6 +20,8 @@ export function toPair(p: gt.GtPool, chain: MemeChainMeta, trending: boolean): P
     baseSymbol: p.baseSymbol,
     baseAddress: p.baseAddress,
     quoteSymbol: p.quoteSymbol,
+    imageUrl: p.imageUrl,
+    launchpad: detectLaunchpad(chain.id, p.dex, p.baseAddress),
     createdAt: p.createdAt,
     priceUsd: p.priceUsd,
     mcap: p.mcap,
@@ -36,6 +40,7 @@ const DUNE_CHAIN: Record<string, string> = { bnb: 'bsc', base: 'base', solana: '
 /** Polls GeckoTerminal for new/trending pairs and their trades, feeding the ledger and the alert engine. */
 export class LiveScanner {
   private lastPolled = new Map<string, number>();
+  private imageTried = new Map<string, number>();
   private cycle = 0;
   private timer: NodeJS.Timeout | null = null;
 
@@ -86,6 +91,8 @@ export class LiveScanner {
       }),
     );
 
+    await this.enrichImages().catch((e) => console.warn(`[scanner] images: ${(e as Error).message}`));
+
     // Poll trades on the most active recent pools, favouring ones we haven't looked at for a while.
     const now = Date.now();
     const candidates = this.ledger.pools({ sinceCreated: now - 48 * 3_600_000, limit: 500 }).filter((p) => p.trending || now - p.createdAt < 24 * 3_600_000);
@@ -110,6 +117,27 @@ export class LiveScanner {
         console.warn(`[scanner] trades ${p.id}: ${(e as Error).message}`);
       }
     }
+  }
+
+  /** Looks up logos on DexScreener for recent pairs GeckoTerminal had no image for. */
+  private async enrichImages() {
+    const now = Date.now();
+    const missing = this.ledger
+      .pools({ sinceCreated: now - 24 * 3_600_000, limit: 500 })
+      .filter((p) => !p.imageUrl && now - (this.imageTried.get(p.id) ?? 0) > 20 * 60_000);
+    const byChain = new Map<string, string[]>();
+    for (const p of missing) {
+      this.imageTried.set(p.id, now);
+      byChain.set(p.chain, [...(byChain.get(p.chain) ?? []), p.baseAddress]);
+    }
+    let calls = 0;
+    for (const [chain, tokens] of byChain) {
+      for (let i = 0; i < tokens.length && calls < 4; i += 30, calls++) {
+        const found = await ds.tokenImages(chain, tokens.slice(i, i + 30));
+        for (const [token, url] of found) this.ledger.setTokenImage(chain, token, url);
+      }
+    }
+    if (this.imageTried.size > 20_000) this.imageTried.clear();
   }
 
   private async refreshSeeds() {

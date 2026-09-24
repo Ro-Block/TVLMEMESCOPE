@@ -73,9 +73,9 @@ export function LaserArena({ groups, shots, focus, onWallet }: Props) {
   // ----- targets (right): most recently hit pairs -----
   const maxTargets = Math.floor((height - 30) / (TH + TGAP));
   const targets = useMemo(() => {
-    const by = new Map<string, { pairId: string; symbol: string; chain: string; dex: string; last: number; first: number; hits: number; buy: number; sell: number; minDelay: number }>();
+    const by = new Map<string, { pairId: string; symbol: string; imageUrl?: string; chain: string; dex: string; last: number; first: number; hits: number; buy: number; sell: number; minDelay: number }>();
     for (const s of shots) {
-      const t = by.get(s.pairId) ?? { pairId: s.pairId, symbol: s.symbol, chain: s.chain, dex: s.dex, last: 0, first: s.ts, hits: 0, buy: 0, sell: 0, minDelay: Infinity };
+      const t = by.get(s.pairId) ?? { pairId: s.pairId, symbol: s.symbol, imageUrl: s.imageUrl, chain: s.chain, dex: s.dex, last: 0, first: s.ts, hits: 0, buy: 0, sell: 0, minDelay: Infinity };
       t.last = Math.max(t.last, s.arrived || s.ts);
       if (s.kind === 'buy') {
         t.hits++;
@@ -184,10 +184,16 @@ export function LaserArena({ groups, shots, focus, onWallet }: Props) {
         return (
           <g key={t.pairId} className="target" style={{ transform: `translateY(${y}px)` }}>
             <rect x={TX} y={0} width={TW} height={TH} rx={10} fill="var(--surface-1)" stroke="var(--border)" />
-            <text x={TX + 14} y={20} fontSize="14" fontWeight={700} fill="var(--text-primary)">
+            {t.imageUrl && (
+              <>
+                <clipPath id={`tc-${i}`}><circle cx={TX + 27} cy={TH / 2} r={17} /></clipPath>
+                <image href={t.imageUrl} x={TX + 10} y={TH / 2 - 17} width={34} height={34} clipPath={`url(#tc-${i})`} preserveAspectRatio="xMidYMid slice" />
+              </>
+            )}
+            <text x={TX + (t.imageUrl ? 52 : 14)} y={20} fontSize="14" fontWeight={700} fill="var(--text-primary)">
               {t.symbol}
             </text>
-            <text x={TX + 14} y={38} fontSize="11" fill="var(--text-secondary)">
+            <text x={TX + (t.imageUrl ? 52 : 14)} y={38} fontSize="11" fill="var(--text-secondary)">
               {t.chain} · {t.dex} · 1st shot {Number.isFinite(t.minDelay) ? `${t.minDelay.toFixed(1)}s` : '—'} · {age(now - t.first)}
             </text>
             <text x={TX + TW - 12} y={20} fontSize="13" textAnchor="end" fill="var(--text-primary)" fontFamily="var(--mono)">

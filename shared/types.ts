@@ -56,6 +56,10 @@ export interface Pair {
   baseSymbol: string;
   baseAddress: string;
   quoteSymbol: string;
+  /** Token logo, when the source has one. */
+  imageUrl?: string;
+  /** Launchpad that minted the token (pump.fun, four.meme, Clanker…), if recognised. */
+  launchpad?: string;
   createdAt: number;
   priceUsd: number;
   mcap: number;
@@ -133,7 +137,7 @@ export interface Alert {
   ts: number;
   kind: AlertKind;
   chain: string;
-  pair: { id: string; name: string; symbol: string; address: string; ageMin: number; mcap: number; liquidity: number; url: string };
+  pair: { id: string; name: string; symbol: string; address: string; ageMin: number; mcap: number; liquidity: number; url: string; imageUrl?: string; launchpad?: string };
   wallets: { wallet: string; usd: number; roi: number; legitScore: number; tier: TraderTier; label?: string }[];
   usd: number;
   message: string;
@@ -272,6 +276,7 @@ export interface Shot {
   symbol: string;
   dex: string;
   token: string;
+  imageUrl?: string;
   delaySec: number;
   sniper: boolean;
   ringId?: string;
