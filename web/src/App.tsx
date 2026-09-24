@@ -8,6 +8,7 @@ import { FlowsPage } from './pages/FlowsPage.tsx';
 import { MemescopePage } from './pages/MemescopePage.tsx';
 import { SnipersPage } from './pages/SnipersPage.tsx';
 import { shotStore } from './lib/shots.ts';
+import { flowEventStore } from './lib/flowEvents.ts';
 import { isStatic, onStaticAlert, startReplay } from './lib/static.ts';
 import { TradersPage, WalletDrawer } from './pages/TradersPage.tsx';
 
@@ -61,6 +62,7 @@ export function App() {
   useEffect(() => {
     void api.alerts().then(setAlerts);
     void api.shots().then(shotStore.seed).catch(() => {});
+    void api.flowEvents().then(flowEventStore.seed).catch(() => {});
     const onAlert = (a: Alert) => {
       setAlerts((xs) => [a, ...xs.filter((x) => x.id !== a.id)].slice(0, 300));
       setToasts((xs) => [a, ...xs].slice(0, 4));
@@ -72,12 +74,13 @@ export function App() {
       }
     };
     if (isStatic()) {
-      const stop = startReplay(shotStore.push, onAlert);
+      const stop = startReplay(shotStore.push, onAlert, flowEventStore.push);
       const off = onStaticAlert(onAlert);
       return () => (stop(), off());
     }
     const es = new EventSource('/api/stream');
     es.addEventListener('shot', (ev) => shotStore.push(JSON.parse((ev as MessageEvent).data)));
+    es.addEventListener('flow', (ev) => flowEventStore.push(JSON.parse((ev as MessageEvent).data)));
     es.addEventListener('alert', (ev) => onAlert(JSON.parse((ev as MessageEvent).data) as Alert));
     return () => es.close();
   }, []);

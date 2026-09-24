@@ -56,6 +56,32 @@ export async function bridges(): Promise<LlamaBridge[]> {
   }));
 }
 
+export interface LargeTx {
+  ts: number;
+  txHash: string;
+  token: string;
+  usd: number;
+  /** true = deposited into a bridge on this chain (leaving), false = released here (arriving). */
+  isDeposit: boolean;
+  bridge?: string;
+}
+
+/** Individual large bridge transfers on one chain in a time range (seconds). */
+export async function largeTransactions(name: string, startSec: number, endSec: number): Promise<LargeTx[]> {
+  const rows = await getJson<Record<string, unknown>[]>(
+    'defillama-bridges',
+    `${BRIDGES}/largetransactions/${encodeURIComponent(name)}?startTimestamp=${startSec}&endTimestamp=${endSec}`,
+  );
+  return (Array.isArray(rows) ? rows : []).map((r) => ({
+    ts: num(r.date) * 1000,
+    txHash: String(r.txHash ?? ''),
+    token: String(r.symbol ?? r.token ?? ''),
+    usd: num(r.usdValue),
+    isDeposit: r.isDeposit === true || r.isDeposit === 'true',
+    bridge: typeof r.bridgeName === 'string' ? r.bridgeName : undefined,
+  }));
+}
+
 type TokenMap = Record<string, { symbol?: string; usdValue?: number }>;
 
 /** Token breakdown for one chain on one day (timestamp = start of day, seconds). */

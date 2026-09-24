@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { FlowWindow } from '../../../shared/types.ts';
 import { AreaChart, MirrorBars, NetFlowBars } from '../components/charts.tsx';
-import { EcosystemLegend, LiquidityMap, SpaceKey } from '../components/LiquidityMap.tsx';
+import { EcosystemLegend, FlowEventLog, LiquidityMap, SpaceKey } from '../components/LiquidityMap.tsx';
 import { api } from '../lib/api.ts';
 import { ecoColor } from '../lib/colors.ts';
 import { pct, signedUsd, timeAgo, usd } from '../lib/format.ts';
@@ -61,8 +61,7 @@ export function FlowsPage() {
         </div>
       </div>
 
-      <div className="flows-grid">
-        <div className="card">
+      <div className="card" style={{ marginBottom: 16 }}>
           <div className="card-head">
             <h2>Liquidity solar system</h2>
             <div className="spacer" />
@@ -78,10 +77,11 @@ export function FlowsPage() {
                 : 'Routes are simulated.'}{' '}
               Updated {timeAgo(data.updatedAt)}.
             </p>
+            <FlowEventLog />
           </div>
-        </div>
+      </div>
 
-        <div style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
+      <div className="flows-grid" style={{ alignItems: 'start' }}>
           <div className="card">
             <div className="card-head">
               <h2>Net flow by chain, {win}</h2>
@@ -125,7 +125,6 @@ export function FlowsPage() {
               </table>
             </div>
           </div>
-        </div>
       </div>
 
       {selected && <ChainDrawer id={selected} win={win} onClose={() => setSelected(null)} />}

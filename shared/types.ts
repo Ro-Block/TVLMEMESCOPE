@@ -180,6 +180,26 @@ export interface StatusResponse {
   notify: { telegram: boolean; discord: boolean };
 }
 
+// ---------- live flow events (solar map effects) ----------
+
+export type FlowEventKind = 'super-comet' | 'supernova';
+
+export interface FlowEvent {
+  id: string;
+  ts: number;
+  kind: FlowEventKind;
+  /** super-comet: the source chain; supernova: the chain liquidity is leaving. */
+  chain: string;
+  /** super-comet destination. Estimated when the source only reports one side. */
+  to?: string;
+  estimatedRoute?: boolean;
+  usd: number;
+  token?: string;
+  bridge?: string;
+  txHash?: string;
+  message: string;
+}
+
 // ---------- snipers & bundles ----------
 
 export interface LaunchSummary {

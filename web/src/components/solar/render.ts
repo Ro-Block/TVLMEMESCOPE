@@ -374,3 +374,113 @@ export function drawComet(ctx: CanvasRenderingContext2D, a: { x: number; y: numb
   ctx.fillRect(hx - width * 3, hy - width * 3, width * 6, width * 6);
   ctx.restore();
 }
+
+// ---------- event effects ----------
+
+const ease = (x: number) => 1 - Math.pow(1 - Math.min(Math.max(x, 0), 1), 2.2);
+
+/**
+ * Super comet: a white-hot head with a long, wide tail and sparks, flying the route over ~4.5s,
+ * then a flash where it lands. `p` runs 0→1 for the flight and 1→1.35 for the impact.
+ */
+export function drawSuperComet(ctx: CanvasRenderingContext2D, a: { x: number; y: number }, q: { x: number; y: number }, b: { x: number; y: number }, p: number, color: RGB, seed: number) {
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.lineCap = 'round';
+  if (p <= 1) {
+    const s = ease(p);
+    const TAIL = 0.4;
+    const STEPS = 34;
+    let px = quad(a.x, q.x, b.x, Math.max(0, s - TAIL));
+    let py = quad(a.y, q.y, b.y, Math.max(0, s - TAIL));
+    for (let i = 1; i <= STEPS; i++) {
+      const u = Math.max(0, s - TAIL + (TAIL * i) / STEPS);
+      const x = quad(a.x, q.x, b.x, u);
+      const y = quad(a.y, q.y, b.y, u);
+      const k = i / STEPS;
+      ctx.strokeStyle = rgba(mix(color, WHITE, k * 0.7), k * k * 0.9);
+      ctx.lineWidth = 2 + k * 9;
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      px = x;
+      py = y;
+    }
+    const hx = quad(a.x, q.x, b.x, s);
+    const hy = quad(a.y, q.y, b.y, s);
+    // Sparks shed behind the head.
+    const rng = mulberry32(seed + Math.floor(p * 60));
+    for (let i = 0; i < 14; i++) {
+      const u = Math.max(0, s - rng() * TAIL * 0.7);
+      const sx = quad(a.x, q.x, b.x, u) + (rng() - 0.5) * 22;
+      const sy = quad(a.y, q.y, b.y, u) + (rng() - 0.5) * 22;
+      ctx.fillStyle = rgba(mix(color, WHITE, 0.6), 0.5 * rng());
+      ctx.fillRect(sx, sy, 1.6, 1.6);
+    }
+    const g = ctx.createRadialGradient(hx, hy, 0, hx, hy, 34);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(0.18, rgba(mix(color, WHITE, 0.6), 0.85));
+    g.addColorStop(1, rgba(color, 0));
+    ctx.fillStyle = g;
+    ctx.fillRect(hx - 34, hy - 34, 68, 68);
+  } else {
+    const k = (p - 1) / 0.35;
+    const g = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, 20 + 60 * k);
+    g.addColorStop(0, rgba(WHITE, 0.9 * (1 - k)));
+    g.addColorStop(0.4, rgba(color, 0.5 * (1 - k)));
+    g.addColorStop(1, rgba(color, 0));
+    ctx.fillStyle = g;
+    ctx.fillRect(b.x - 90, b.y - 90, 180, 180);
+    ctx.strokeStyle = rgba(mix(color, WHITE, 0.5), 0.8 * (1 - k));
+    ctx.lineWidth = 2.5 * (1 - k) + 0.5;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, 14 + 55 * k, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** Supernova: flash, three shockwaves, flying debris and a fading remnant. `p` runs 0→1 over ~4s. */
+export function drawSupernova(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, p: number, color: RGB, seed: number) {
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const flash = Math.max(0, 1 - p / 0.12);
+  if (flash > 0) {
+    const f = ctx.createRadialGradient(x, y, 0, x, y, r * 9);
+    f.addColorStop(0, `rgba(255,255,255,${flash})`);
+    f.addColorStop(0.3, `rgba(255,230,180,${0.7 * flash})`);
+    f.addColorStop(1, 'rgba(255,200,120,0)');
+    ctx.fillStyle = f;
+    ctx.fillRect(x - r * 9, y - r * 9, r * 18, r * 18);
+  }
+  // Remnant nebula.
+  const rem = ctx.createRadialGradient(x, y, 0, x, y, r * 2 + 150 * ease(p));
+  rem.addColorStop(0, rgba(mix(color, [255, 120, 60], 0.5), 0.35 * (1 - p)));
+  rem.addColorStop(0.6, rgba(mix(color, [180, 60, 160], 0.4), 0.18 * (1 - p)));
+  rem.addColorStop(1, rgba(color, 0));
+  ctx.fillStyle = rem;
+  ctx.fillRect(x - 200, y - 200, 400, 400);
+  // Shockwaves.
+  for (let i = 0; i < 3; i++) {
+    const k = ease(p * (1.25 - i * 0.18) - i * 0.05);
+    if (k <= 0) continue;
+    ctx.strokeStyle = i === 0 ? `rgba(255,245,230,${0.9 * (1 - k)})` : rgba(mix(color, [255, 150, 80], 0.5), 0.7 * (1 - k));
+    ctx.lineWidth = (4 - i) * (1 - k) + 0.4;
+    ctx.beginPath();
+    ctx.ellipse(x, y, r + 190 * k, (r + 190 * k) * 0.8, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  // Debris.
+  const rng = mulberry32(seed);
+  for (let i = 0; i < 70; i++) {
+    const ang = rng() * Math.PI * 2;
+    const speed = 60 + rng() * 170;
+    const d = r + speed * ease(p);
+    const a = (1 - p) * (0.5 + rng() * 0.5);
+    ctx.fillStyle = rgba(rng() < 0.4 ? WHITE : mix(color, [255, 170, 90], rng()), a);
+    const s = 1 + rng() * 2;
+    ctx.fillRect(x + Math.cos(ang) * d, y + Math.sin(ang) * d * 0.8, s, s);
+  }
+  ctx.restore();
+}

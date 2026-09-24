@@ -1,4 +1,4 @@
-import type { Alert, AlertSettings, Pair, Shot, SnipersResponse, StatusResponse, TraderStats, WalletDetail } from '../../../shared/types.ts';
+import type { Alert, AlertSettings, FlowEvent, FlowsResponse, Pair, Shot, SnipersResponse, StatusResponse, TraderStats, WalletDetail } from '../../../shared/types.ts';
 
 // Snapshot mode: `npm run snapshot` bakes API responses into the page as window.__STATIC__ so the
 // UI runs with no server (e.g. as a hosted demo). Requests are answered from that data, and
@@ -108,6 +108,7 @@ export async function staticReq(path: string, init?: RequestInit): Promise<unkno
     };
   }
   if (p === '/api/snipers/shots') return r<Shot[]>('shots');
+  if (p === '/api/flow-events') return [];
   if (p === '/api/alerts' && method === 'GET') return r<Alert[]>('alerts');
   if (p === '/api/settings') {
     if (method === 'PUT') data().responses.settings = { ...r<AlertSettings>('settings'), ...body };
@@ -133,7 +134,7 @@ export async function staticReq(path: string, init?: RequestInit): Promise<unkno
 }
 
 /** Replays recorded shots in bursts (one burst = one pair's opening volley) and an alert now and then. */
-export function startReplay(onShot: (s: Shot) => void, onAlert: (a: Alert) => void): () => void {
+export function startReplay(onShot: (s: Shot) => void, onAlert: (a: Alert) => void, onFlow?: (e: FlowEvent) => void): () => void {
   const shots = [...r<Shot[]>('shots')].sort((a, b) => a.ts - b.ts);
   const bursts: Shot[][] = [];
   for (const s of shots) {
@@ -164,10 +165,40 @@ export function startReplay(onShot: (s: Shot) => void, onAlert: (a: Alert) => vo
     }
     tAlert = setTimeout(nextAlert, 25_000 + Math.random() * 15_000);
   };
+  // Solar map effects, drawn from the recorded 7d routes.
+  const { flows, chains } = r<FlowsResponse>('flows:7d');
+  const name = (id: string) => chains.find((c) => c.id === id)?.name ?? id;
+  const m = (n: number) => `$${(n / 1e6).toFixed(1)}M`;
+  let tComet: ReturnType<typeof setTimeout> | undefined;
+  let tNova: ReturnType<typeof setTimeout> | undefined;
+  let fx = 0;
+  const comet = () => {
+    const total = flows.reduce((a, f) => a + f.usd, 0);
+    let pick = Math.random() * total;
+    const f = flows.find((x) => (pick -= x.usd) <= 0) ?? flows[0];
+    if (f && onFlow) {
+      const usd = 12e6 + Math.random() ** 2 * 180e6;
+      const token = ['USDC', 'USDT', 'ETH', 'WBTC', 'SOL', 'USDe'][Math.floor(Math.random() * 6)];
+      onFlow({ id: `replay-c-${++fx}`, ts: Date.now(), kind: 'super-comet', chain: f.from, to: f.to, usd, token, message: `☄ ${m(usd)} ${token} bridged ${name(f.from)} → ${name(f.to)}` });
+    }
+    tComet = setTimeout(comet, 14_000 + Math.random() * 16_000);
+  };
+  const nova = () => {
+    const c = chains[Math.floor(Math.random() * chains.length)];
+    if (c && onFlow) {
+      const usd = 60e6 + Math.random() * 240e6;
+      onFlow({ id: `replay-n-${++fx}`, ts: Date.now(), kind: 'supernova', chain: c.id, usd, message: `✹ ${m(usd)} left ${c.name} within the hour` });
+    }
+    tNova = setTimeout(nova, 45_000 + Math.random() * 40_000);
+  };
   tShot = setTimeout(next, 1_200);
   tAlert = setTimeout(nextAlert, 12_000);
+  tComet = setTimeout(comet, 4_000);
+  tNova = setTimeout(nova, 14_000);
   return () => {
     clearTimeout(tShot);
     clearTimeout(tAlert);
+    clearTimeout(tComet);
+    clearTimeout(tNova);
   };
 }

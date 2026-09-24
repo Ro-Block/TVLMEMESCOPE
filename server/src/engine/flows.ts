@@ -7,7 +7,7 @@ import { gauss, hashSeed, mulberry32 } from '../rand.ts';
 const DAY = 86_400_000;
 const WINDOW_DAYS: Record<FlowWindow, number> = { '24h': 1, '7d': 7, '30d': 30 };
 
-interface ChainSeries {
+export interface ChainSeries {
   meta: ChainMeta;
   tvl: number;
   tvlHistory: { t: number; v: number }[];
@@ -143,7 +143,7 @@ function demoSeries(): ChainSeries[] {
 
 let flowSource: DataSource = DATA_MODE === 'demo' ? 'demo' : 'live';
 
-const loadSeries = cached(10 * 60_000, async () => {
+export const loadSeries = cached(10 * 60_000, async () => {
   if (DATA_MODE === 'demo') return demoSeries();
   try {
     const s = await liveSeries();

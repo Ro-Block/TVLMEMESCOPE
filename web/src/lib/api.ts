@@ -1,4 +1,4 @@
-import type { Alert, AlertSettings, Shot, SnipersResponse, ChainDetail, FlowWindow, FlowsResponse, Pair, StatusResponse, TraderStats, WalletDetail } from '../../../shared/types.ts';
+import type { Alert, AlertSettings, FlowEvent, Shot, SnipersResponse, ChainDetail, FlowWindow, FlowsResponse, Pair, StatusResponse, TraderStats, WalletDetail } from '../../../shared/types.ts';
 
 import { isStatic, staticReq } from './static.ts';
 
@@ -23,6 +23,7 @@ export const api = {
   unwatch: (chain: string, wallet: string) => req(`/api/watchlist/${chain}/${wallet}`, { method: 'DELETE' }),
   snipers: (chains: string[]) => req<SnipersResponse>(`/api/snipers?chains=${chains.join(',')}`),
   shots: () => req<Shot[]>('/api/snipers/shots'),
+  flowEvents: () => req<FlowEvent[]>('/api/flow-events'),
   watchMany: (chain: string, wallets: string[], label?: string) => req('/api/watchlist/bulk', { method: 'POST', body: JSON.stringify({ chain, wallets, label }) }),
   alerts: () => req<Alert[]>('/api/alerts'),
   settings: () => req<AlertSettings>('/api/settings'),

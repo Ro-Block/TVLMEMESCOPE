@@ -77,6 +77,14 @@ export const NOTIFY = {
   discordWebhook: env.DISCORD_WEBHOOK_URL || '',
 };
 
+/** Thresholds for the solar map's live effects. */
+export const FLOW_EVENTS = {
+  superCometUsd: Number(env.SUPER_COMET_USD ?? 10_000_000),
+  supernovaUsd: Number(env.SUPERNOVA_USD ?? 50_000_000),
+  /** A day whose outflow is this many times the chain's recent median also counts as a supernova. */
+  supernovaSpike: Number(env.SUPERNOVA_SPIKE ?? 3),
+};
+
 export const DUNE = {
   apiKey: env.DUNE_API_KEY || '',
   queryId: env.DUNE_QUERY_ID || '',

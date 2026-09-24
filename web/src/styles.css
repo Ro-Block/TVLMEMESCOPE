@@ -294,7 +294,7 @@ tbody tr[aria-selected='true'] { background: var(--surface-2); }
 .brand-mark .moon { transform-origin: 11px 11px; animation: orbit 6s linear infinite; }
 @keyframes orbit { to { transform: rotate(360deg); } }
 
-.space { position: relative; border-radius: 12px; overflow: hidden; background: var(--space-bg); aspect-ratio: 760 / 620; }
+.space { position: relative; border-radius: 12px; overflow: hidden; background: var(--space-bg); aspect-ratio: 1000 / 660; }
 .space canvas, .space svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .space .orbit-label { fill: var(--space-muted); font-size: 11px; font-family: var(--mono); paint-order: stroke; stroke: var(--space-bg); stroke-width: 4px; }
 .space .sun-value { fill: #ffe3a8; font-family: var(--display); font-size: 18px; font-weight: 700; paint-order: stroke; stroke: rgb(6 9 19 / 85%); stroke-width: 4px; }
@@ -314,11 +314,25 @@ tbody tr[aria-selected='true'] { background: var(--surface-2); }
 /* On phones the map is scaled down ~2x: bigger names, drop the per-planet net (it's in the tooltip and table). */
 .space { container-type: inline-size; }
 @container (max-width: 560px) {
-  .space .planet-name { font-size: 23px; stroke-width: 5px; }
+  .space .planet-name { font-size: 30px; stroke-width: 6px; }
   .space .planet-net { display: none; }
-  .space .orbit-label { font-size: 19px; }
-  .space .sun-value { font-size: 24px; }
+  .space .sun-value { font-size: 32px; }
+  .space .sun-label { display: none; }
+  .space-banner { font-size: 11px; }
   .space-btn { font-size: 11px; padding: 3px 8px; right: 6px; bottom: 6px; }
 }
 .avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; display: block; }
 .launchpad { display: inline-flex; align-items: center; gap: 3px; font-size: 10.5px; font-weight: 600; padding: 0 6px; border-radius: 99px; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--text-primary); white-space: nowrap; }
+
+.space-banner { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); max-width: calc(100% - 24px); padding: 7px 14px; border-radius: 99px; background: rgb(6 9 19 / 78%); border: 1px solid rgb(170 185 255 / 30%); color: var(--space-text); font-size: 13px; text-align: center; backdrop-filter: blur(6px); animation: banner-in 0.35s ease-out; }
+.space-banner.super-comet { border-color: rgb(120 180 255 / 70%); box-shadow: 0 0 24px rgb(90 150 255 / 35%); }
+.space-banner.supernova { border-color: rgb(255 160 90 / 75%); box-shadow: 0 0 24px rgb(255 130 60 / 40%); }
+.space-banner b { font-family: var(--display); margin-right: 6px; }
+@keyframes banner-in { from { opacity: 0; transform: translate(-50%, -8px); } }
+.event-log { display: grid; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.event-log-head { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); padding: 8px 12px; background: var(--surface-2); }
+.event-row { display: grid; grid-template-columns: 130px 1fr auto; gap: 12px; padding: 7px 12px; border-top: 1px solid var(--grid); font-size: 13px; align-items: baseline; }
+.event-row .event-kind { font-weight: 600; white-space: nowrap; }
+.event-row.super-comet .event-kind { color: var(--accent); }
+.event-row.supernova .event-kind { color: var(--warn); }
+@media (max-width: 640px) { .event-row { grid-template-columns: 1fr auto; } .event-row .event-kind { grid-column: 1 / -1; } }

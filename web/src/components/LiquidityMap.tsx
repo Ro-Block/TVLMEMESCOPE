@@ -2,21 +2,23 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ECOSYSTEMS, type ChainNode, type Ecosystem, type Flow } from '../../../shared/types.ts';
 import { ecoColor } from '../lib/colors.ts';
 import { pct, signedUsd, usd } from '../lib/format.ts';
-import { drawComet, drawPlanet, drawRing, drawSun, hex, planetTexture, rgba, skyTexture, sunTexture, type PlanetKind } from './solar/render.ts';
+import { useFlowEvents, type LiveFlowEvent } from '../lib/flowEvents.ts';
+import { drawComet, drawPlanet, drawRing, drawSun, drawSupernova, drawSuperComet, hex, planetTexture, rgba, skyTexture, sunTexture, type PlanetKind } from './solar/render.ts';
 import { TipRows, useTooltip } from './Tooltip.tsx';
 
-const W = 760;
-const H = 620;
+const W = 1000;
+const H = 660;
 const CX = W / 2;
-const CY = H / 2 + 6;
-const TILT = 0.62; // orbits seen at an angle
-const SUN_R = 40;
+const CY = H / 2 + 4;
+const SUN_R = 44;
+const COMET_MS = 4_500;
+const NOVA_MS = 4_200;
 
 /** Orbits are TVL classes, so where a planet sits tells you its size class at a glance. */
 const ORBITS = [
-  { r: 145, min: 5e9, period: 260 },
-  { r: 222, min: 1e9, period: 380 },
-  { r: 300, min: 0, period: 520 },
+  { rx: 190, ry: 92, min: 5e9, period: 260 },
+  { rx: 300, ry: 146, min: 1e9, period: 380 },
+  { rx: 410, ry: 198, min: 0, period: 520 },
 ];
 
 // The map is always rendered on a dark sky, so it uses the dark-theme ecosystem colours.
@@ -45,11 +47,11 @@ const pos = (p: Planet, t: number) => {
   const o = ORBITS[p.orbit];
   const a = p.phase + (t / o.period) * Math.PI * 2;
   const depth = Math.sin(a); // -1 far side, +1 near side
-  return { x: CX + o.r * Math.cos(a), y: CY + o.r * TILT * depth, depth, scale: 0.86 + (0.14 * (depth + 1)) / 2 };
+  return { x: CX + o.rx * Math.cos(a), y: CY + o.ry * depth, depth, scale: 0.86 + (0.14 * (depth + 1)) / 2 };
 };
 
 // Comet route: a quadratic curve that bows outward so it swings around the sun instead of crossing it.
-const CLEAR = SUN_R + 38;
+const CLEAR = SUN_R + 44;
 function route(a: { x: number; y: number }, b: { x: number; y: number }) {
   const mx = (a.x + b.x) / 2;
   const my = (a.y + b.y) / 2;
@@ -90,6 +92,11 @@ export function LiquidityMap({ chains, flows, windowLabel, selected, onSelect }:
   const flowRefs = useRef(new Map<string, SVGPathElement>());
   const t = useRef(0);
   const live = useRef({ halt: false, focus: null as string | null });
+  // Live super comets / supernovas currently playing.
+  const effects = useRef<{ e: LiveFlowEvent; start: number; seed: number }[]>([]);
+  const seenEvents = useRef<Set<string> | null>(null);
+  const events = useFlowEvents();
+  const [banner, setBanner] = useState<LiveFlowEvent | null>(null);
   live.current = { halt: paused || hover !== null, focus };
 
   const planets = useMemo(() => {
@@ -107,8 +114,8 @@ export function LiquidityMap({ chains, flows, windowLabel, selected, onSelect }:
         out.set(c.id, {
           c,
           orbit,
-          phase: orbit * 0.9 + (i / list.length) * Math.PI * 2,
-          r: 7 + 23 * Math.sqrt(c.tvl / maxTvl),
+          phase: orbit * 1.1 + 0.35 + (i / list.length) * Math.PI * 2,
+          r: 8 + 26 * Math.sqrt(c.tvl / maxTvl),
           ringed: c.id === biggest?.id,
           tex: planetTexture(ECO_HEX[c.ecosystem], kind, seed),
         });
@@ -169,7 +176,7 @@ export function LiquidityMap({ chains, flows, windowLabel, selected, onSelect }:
 
       ORBITS.forEach((o, i) => {
         ctx.beginPath();
-        ctx.ellipse(CX, CY, o.r, o.r * TILT, 0, 0, Math.PI * 2);
+        ctx.ellipse(CX, CY, o.rx, o.ry, 0, 0, Math.PI * 2);
         ctx.strokeStyle = `rgba(170,185,255,${i === 0 ? 0.2 : 0.13})`;
         ctx.lineWidth = 0.8;
         ctx.setLineDash(i === 0 ? [] : [2, 5]);
@@ -211,7 +218,24 @@ export function LiquidityMap({ chains, flows, windowLabel, selected, onSelect }:
         ctx.globalAlpha = 1;
       }
 
+      // Super comets fly above the regular traffic.
+      effects.current = effects.current.filter((fx) => now - fx.start < (fx.e.kind === 'super-comet' ? COMET_MS * 1.35 : NOVA_MS));
+      for (const fx of effects.current) {
+        if (fx.e.kind !== 'super-comet') continue;
+        const a = at.get(fx.e.chain);
+        const b = at.get(fx.e.to!);
+        if (!a || !b) continue;
+        drawSuperComet(ctx, a, route(a, b).q, b, (now - fx.start) / COMET_MS, hex(ECO_HEX[planets.get(fx.e.chain)!.c.ecosystem]), fx.seed);
+      }
+
       for (const id of order) if (at.get(id)!.depth >= 0) paint(id);
+
+      for (const fx of effects.current) {
+        if (fx.e.kind !== 'supernova') continue;
+        const q = at.get(fx.e.chain);
+        const p = planets.get(fx.e.chain);
+        if (q && p) drawSupernova(ctx, q.x, q.y, p.r * q.scale, (now - fx.start) / NOVA_MS, hex(ECO_HEX[p.c.ecosystem]), fx.seed);
+      }
 
       for (const [id, el] of planetRefs.current) {
         const q = at.get(id);
@@ -225,6 +249,25 @@ export function LiquidityMap({ chains, flows, windowLabel, selected, onSelect }:
       ro.disconnect();
     };
   }, [planets, visible, maxFlow]);
+
+  useEffect(() => {
+    if (!seenEvents.current) {
+      seenEvents.current = new Set(events.map((e) => e.id));
+      return;
+    }
+    for (const e of events) {
+      if (seenEvents.current.has(e.id)) continue;
+      seenEvents.current.add(e.id);
+      if (!planets.has(e.chain) || (e.kind === 'super-comet' && !planets.has(e.to ?? ''))) continue;
+      effects.current.push({ e, start: performance.now(), seed: hashStr(e.id) });
+      setBanner(e);
+    }
+  }, [events, planets]);
+  useEffect(() => {
+    if (!banner) return;
+    const id = setTimeout(() => setBanner(null), 7_000);
+    return () => clearTimeout(id);
+  }, [banner]);
 
   const isRelated = (id: string) => !focus || id === focus || visible.some((f) => (f.from === focus && f.to === id) || (f.to === focus && f.from === id));
 
@@ -313,6 +356,11 @@ export function LiquidityMap({ chains, flows, windowLabel, selected, onSelect }:
           );
         })}
       </svg>
+      {banner && (
+        <div key={banner.id} className={`space-banner ${banner.kind}`} role="status">
+          <b>{banner.kind === 'super-comet' ? 'Super comet' : 'Supernova'}</b> {banner.message.replace(/^[☄✹]\s*/, '')}
+        </div>
+      )}
       <button className="space-btn" onClick={() => setPaused(!paused)} aria-pressed={paused}>
         {paused ? '▶ Resume orbits' : '❚❚ Pause orbits'}
       </button>
@@ -332,6 +380,29 @@ export function EcosystemLegend({ present }: { present: Set<string> }) {
     </div>
   );
 }
+
+/** The latest super comets and supernovas, newest first. */
+export function FlowEventLog() {
+  const events = useFlowEvents();
+  if (!events.length) return <p className="note" style={{ margin: 0 }}>Super comets (single transfers of $10M+) and supernovas (a chain losing $50M+ at once, or 3× its usual daily outflow) appear here and on the map as they happen.</p>;
+  return (
+    <div className="event-log">
+      <div className="event-log-head">Live events</div>
+      {events.slice(0, 8).map((e) => (
+        <div key={e.id} className={`event-row ${e.kind}`}>
+          <span className="event-kind">{e.kind === 'super-comet' ? '☄ Super comet' : '✹ Supernova'}</span>
+          <span>{e.message.replace(/^[☄✹]\s*/, '')}</span>
+          <span className="muted mono">{ago(e.arrived || e.ts)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const ago = (ts: number) => {
+  const s = Math.max(0, (Date.now() - ts) / 1000);
+  return s < 60 ? `${Math.round(s)}s ago` : s < 3600 ? `${Math.round(s / 60)}m ago` : `${Math.round(s / 3600)}h ago`;
+};
 
 /** How to read the map. */
 export function SpaceKey() {
@@ -353,6 +424,8 @@ export function SpaceKey() {
         </svg>
         Comet = net flow, flying to the receiver
       </span>
+      <span>☄ Super comet = one big bridge transfer</span>
+      <span>✹ Supernova = big liquidity exodus</span>
       <span>
         <svg width="16" height="16" aria-hidden><circle cx="8" cy="8" r="6" fill="none" stroke="var(--flow-in)" strokeWidth="2" /></svg>
         Ring: net in

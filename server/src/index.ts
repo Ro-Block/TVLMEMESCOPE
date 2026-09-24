@@ -6,6 +6,7 @@ import { DATA_MODE, DB_PATH, DEFAULT_ALERT_SETTINGS, MEME_CHAINS, PORT, ROI_WIND
 import { openDb } from './db.ts';
 import { AlertEngine } from './engine/alerts.ts';
 import { DemoMarket } from './engine/demo-sim.ts';
+import { FlowEventEngine } from './engine/flow-events.ts';
 import { flowsSource, getChainDetail, getFlows } from './engine/flows.ts';
 import { Ledger } from './engine/ledger.ts';
 import { LiveScanner, type TradeSink } from './engine/scanner.ts';
@@ -34,6 +35,9 @@ const onTrades: TradeSink = (pair, fresh, now) => {
 };
 if (memeMode === 'demo') new DemoMarket(ledger, alerts, onTrades, () => snipers.compute()).start();
 else new LiveScanner(ledger, onTrades).start();
+
+const flowEvents = new FlowEventEngine();
+flowEvents.start(DATA_MODE === 'demo' ? 'demo' : (await flowsSource()) === 'live' ? 'live' : 'demo');
 
 const app = express();
 app.use(express.json());
@@ -64,6 +68,8 @@ app.get('/api/status', wrap(async (): Promise<StatusResponse> => ({
 })));
 
 app.get('/api/flows', wrap((req) => getFlows(windowOf(req.query.window))));
+
+app.get('/api/flow-events', wrap(() => flowEvents.list()));
 
 app.get('/api/chains/:id', wrap(async (req, res) => {
   const d = await getChainDetail(String(req.params.id), windowOf(req.query.window));
@@ -162,10 +168,12 @@ app.get('/api/stream', (req, res) => {
   res.write(': connected\n\n');
   const off = alerts.subscribe((a) => res.write(`event: alert\ndata: ${JSON.stringify(a)}\n\n`));
   const offShots = snipers.subscribe((s) => res.write(`event: shot\ndata: ${JSON.stringify(s)}\n\n`));
+  const offFlow = flowEvents.subscribe((e) => res.write(`event: flow\ndata: ${JSON.stringify(e)}\n\n`));
   const ping = setInterval(() => res.write(': ping\n\n'), 25_000);
   req.on('close', () => {
     off();
     offShots();
+    offFlow();
     clearInterval(ping);
   });
 });
