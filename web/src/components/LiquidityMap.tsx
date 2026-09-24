@@ -325,7 +325,7 @@ export function LiquidityMap({ chains, flows, windowLabel, selected, onSelect }:
                 tip.show(
                   e,
                   <TipRows
-                    title={c.name}
+                    title={c.ticker ? `${c.name} (${c.ticker})` : c.name}
                     rows={[
                       ['TVL', usd(c.tvl)],
                       ['7d change', pct(c.tvlChange7d)],
@@ -348,6 +348,7 @@ export function LiquidityMap({ chains, flows, windowLabel, selected, onSelect }:
               {selected === c.id && <circle r={r + halo + 9} fill="none" stroke="#fff" strokeWidth={1.2} strokeDasharray="3 3" className="target-ring" />}
               <text y={r + halo + 17} textAnchor="middle" className="planet-name">
                 {c.name}
+                {c.ticker && <tspan className="planet-ticker"> {c.ticker}</tspan>}
               </text>
               <text y={r + halo + 31} textAnchor="middle" className="planet-net">
                 {c.net >= 0 ? '▲' : '▼'} {signedUsd(c.net)}

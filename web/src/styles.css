@@ -301,6 +301,7 @@ tbody tr[aria-selected='true'] { background: var(--surface-2); }
 .space .sun-label { fill: var(--space-muted); font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em; paint-order: stroke; stroke: rgb(6 9 19 / 85%); stroke-width: 3px; }
 .space .planet { cursor: pointer; outline: none; }
 .space .planet-name { fill: var(--space-text); font-size: 12px; font-weight: 600; paint-order: stroke; stroke: var(--space-bg); stroke-width: 3px; }
+.space .planet-ticker { fill: var(--space-muted); font-family: var(--mono); font-weight: 500; font-size: 0.85em; }
 .space .planet-net { fill: var(--space-muted); font-size: 10.5px; font-family: var(--mono); paint-order: stroke; stroke: var(--space-bg); stroke-width: 3px; }
 .space .planet:focus-visible .planet-name { text-decoration: underline; }
 .space .target-ring { transform-box: fill-box; transform-origin: center; animation: orbit 8s linear infinite; }

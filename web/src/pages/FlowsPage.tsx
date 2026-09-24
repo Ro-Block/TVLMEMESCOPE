@@ -113,6 +113,7 @@ export function FlowsPage() {
                         <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
                           <i className="swatch" style={{ background: ecoColor(c.ecosystem), borderRadius: '50%' }} />
                           {c.name}
+                          {c.ticker && <span className="muted mono" style={{ fontSize: 12 }}>{c.ticker}</span>}
                         </span>
                       </td>
                       <td className="num">{usd(c.tvl)}</td>
@@ -140,7 +141,7 @@ function ChainDrawer({ id, win, onClose }: { id: string; win: FlowWindow; onClos
       <aside className="drawer" aria-label="Chain details">
         <div className="drawer-head">
           {data && <i className="swatch" style={{ background: ecoColor(data.chain.ecosystem), width: 14, height: 14, borderRadius: '50%' }} />}
-          <h2>{data?.chain.name ?? id}</h2>
+          <h2>{data?.chain.name ?? id}{data?.chain.ticker && <span className="muted mono" style={{ fontSize: 14, marginLeft: 8 }}>{data.chain.ticker}</span>}</h2>
           {data && <span className="badge">{data.chain.ecosystem}</span>}
           <div className="spacer" />
           <button className="icon-btn" onClick={onClose} aria-label="Close">

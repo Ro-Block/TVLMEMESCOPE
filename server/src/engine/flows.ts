@@ -68,6 +68,7 @@ function toNode(s: ChainSeries, n: number): ChainNode {
   return {
     id: s.meta.id,
     name: s.meta.name,
+    ticker: s.meta.ticker,
     ecosystem: s.meta.ecosystem,
     tvl: s.tvl || now,
     tvlChange7d: weekAgo > 0 ? now / weekAgo - 1 : null,
@@ -96,7 +97,8 @@ async function liveSeries(): Promise<ChainSeries[]> {
   const byName = new Map(tvls.map((c) => [c.name.toLowerCase(), c.tvl]));
   const series = await Promise.all(
     FLOW_CHAINS.map(async (meta) => {
-      const tvl = meta.llama.map((n) => byName.get(n.toLowerCase())).find((v) => v !== undefined) ?? 0;
+      let tvl = meta.llama.map((n) => byName.get(n.toLowerCase())).find((v) => v !== undefined) ?? 0;
+      if (!tvl && meta.protocol) tvl = await llama.protocolTvl(meta.protocol).catch(() => 0);
       const [tvlHistory, bridgeDays] = await Promise.all([
         firstNonEmpty(meta.llama, llama.chainTvlHistory),
         firstNonEmpty(meta.llama, llama.bridgeVolume),
@@ -112,7 +114,7 @@ async function liveSeries(): Promise<ChainSeries[]> {
 
 const DEMO_TVL: Record<string, number> = {
   ethereum: 72e9, solana: 11.5e9, bsc: 7.8e9, base: 5.6e9, arbitrum: 3.4e9, tron: 5.1e9,
-  hyperliquid: 3.9e9, robinhood: 0.9e9, avalanche: 1.6e9, polygon: 1.2e9, optimism: 0.7e9, sui: 1.5e9,
+  hyperliquid: 3.9e9, lighter: 1.3e9, robinhood: 0.9e9, avalanche: 1.6e9, polygon: 1.2e9, optimism: 0.7e9, sui: 1.5e9,
 };
 
 function demoSeries(): ChainSeries[] {

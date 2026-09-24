@@ -14,6 +14,10 @@ export interface ChainMeta {
   ecosystem: Ecosystem;
   /** Names DefiLlama uses for this chain (TVL and bridge endpoints differ in places). */
   llama: string[];
+  /** Native token ticker, shown next to the name. */
+  ticker?: string;
+  /** DefiLlama protocol slug to fall back on when the chain isn't listed as a chain (e.g. app-rollups). */
+  protocol?: string;
 }
 
 /** Chains shown on the liquidity map. */
@@ -25,6 +29,7 @@ export const FLOW_CHAINS: ChainMeta[] = [
   { id: 'robinhood', name: 'Robinhood Chain', ecosystem: 'Robinhood', llama: ['Robinhood', 'Robinhood Chain'] },
   { id: 'solana', name: 'Solana', ecosystem: 'Solana', llama: ['Solana'] },
   { id: 'bsc', name: 'BNB Chain', ecosystem: 'BNB', llama: ['BSC', 'Binance'] },
+  { id: 'lighter', name: 'Lighter', ticker: 'LIT', ecosystem: 'Ethereum', llama: ['Lighter', 'zkLighter'], protocol: 'lighter' },
   { id: 'hyperliquid', name: 'Hyperliquid', ecosystem: 'Hyperliquid', llama: ['Hyperliquid L1', 'Hyperliquid', 'HyperEVM'] },
   { id: 'tron', name: 'Tron', ecosystem: 'Other', llama: ['Tron'] },
   { id: 'avalanche', name: 'Avalanche', ecosystem: 'Other', llama: ['Avalanche', 'AVAX'] },

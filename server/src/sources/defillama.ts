@@ -16,6 +16,11 @@ export async function chainsTvl(): Promise<LlamaChain[]> {
   return rows.map((r) => ({ name: r.name, tvl: num(r.tvl) }));
 }
 
+/** Current TVL of a protocol (used for app-rollups DefiLlama tracks as protocols). */
+export async function protocolTvl(slug: string): Promise<number> {
+  return num(await getJson<number>('defillama', `${LLAMA}/tvl/${encodeURIComponent(slug)}`));
+}
+
 export async function chainTvlHistory(name: string): Promise<{ t: number; v: number }[]> {
   const rows = await getJson<{ date: number; tvl: number }[]>('defillama', `${LLAMA}/v2/historicalChainTvl/${encodeURIComponent(name)}`);
   return rows.map((r) => ({ t: num(r.date) * 1000, v: num(r.tvl) }));

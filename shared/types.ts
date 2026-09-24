@@ -11,6 +11,7 @@ export type FlowWindow = '24h' | '7d' | '30d';
 export interface ChainNode {
   id: string;
   name: string;
+  ticker?: string;
   ecosystem: Ecosystem;
   tvl: number;
   tvlChange7d: number | null; // fraction, 0.05 = +5%
