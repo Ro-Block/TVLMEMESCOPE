@@ -229,7 +229,7 @@ async function liveFlows(window: FlowWindow): Promise<FlowsResponse> {
     }),
   );
   const shown = chains.filter((c) => c.tvl > 0 || (c.stablecoins ?? 0) > 0 || c.inflow + c.outflow > 0).sort((a, b) => b.tvl - a.tvl);
-  if (tvs) status.set('L2BEAT value secured', { name: 'L2BEAT value secured', ok: true, updatedAt: Date.now(), note: `${tvs.size} projects` });
+  if (tvs) status.set('L2BEAT value secured', { name: 'L2BEAT value secured', ok: true, updatedAt: Date.now(), note: tvs.bySlug.size ? `${tvs.bySlug.size} projects` : 'all-L2 total only (per-project format not recognised)' });
   else if (sourceHealth.l2beat && !sourceHealth.l2beat.ok) status.set('L2BEAT value secured', { name: 'L2BEAT value secured', ok: false, updatedAt: null, note: sourceHealth.l2beat.lastError });
   const sources = ['DefiLlama TVL', 'DefiLlama stablecoins', 'Wormholescan routes', 'L2BEAT value secured', ...(process.env.GECKOTERMINAL_POOLS === 'on' ? ['GeckoTerminal pools'] : [])].map((n) => status.get(n) ?? { name: n, ok: false, updatedAt: null, note: 'not loaded yet' });
   return {
@@ -241,7 +241,8 @@ async function liveFlows(window: FlowWindow): Promise<FlowsResponse> {
       bridged: shown.reduce((s, c) => s + c.inflow, 0),
       stablecoins: shown.reduce((s, c) => s + (c.stablecoins ?? 0), 0),
       dexVolume: shown.reduce((s, c) => s + (c.dexVolume ?? 0), 0),
-      l2beatTvs: shown.reduce((s, c) => s + (c.l2beatTvs ?? 0), 0),
+      // L2BEAT's own all-L2 total when available, else the sum of the L2s on the map.
+      l2beatTvs: tvs?.total ?? shown.reduce((s, c) => s + (c.l2beatTvs ?? 0), 0),
     },
     routing: 'observed',
     routesWindow: window === '5m' ? '1h' : window,

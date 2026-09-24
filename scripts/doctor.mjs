@@ -71,12 +71,16 @@ await http('DefiLlama stablecoins', 'https://stablecoins.llama.fi/stablecoinchai
 await http('DefiLlama DEX volume', 'https://api.llama.fi/overview/dexs/Base?excludeTotalDataChart=true&excludeTotalDataChartBreakdown=true', { check: (j) => typeof j.total24h === 'number' });
 await http('Wormholescan routes', `https://api.wormholescan.io/api/v1/x-chain-activity/tops?timespan=1h&from=${new Date(now - 3 * 3600e3).toISOString()}&to=${new Date(now).toISOString()}`, { check: (j) => Array.isArray(j) });
 await http('L2BEAT value secured', 'https://l2beat.com/api/scaling/summary', {
-  sample: true,
   check: (j) => {
-    const p = j?.data?.projects;
+    const root = j?.data ?? j;
+    const p = root?.projects;
     const list = Array.isArray(p) ? p : p && typeof p === 'object' ? Object.values(p) : [];
-    const n = list.filter((x) => x?.tvs?.breakdown?.total > 0 || x?.tvs?.total > 0 || x?.tvs?.usdValue > 0 || x?.tvl?.breakdown?.total > 0).length;
-    return n > 0 ? true : `format not recognised (keys: ${Object.keys(j ?? {}).join(',')}; data: ${j?.data ? Object.keys(j.data).join(',') : '-'}) — paste this output to get it fixed`;
+    const tvsOf = (x) => { const t = x?.tvs ?? x?.tvl; const b = t?.breakdown; return Number(b?.total) || (b ? Number(b.native || 0) + Number(b.canonical || 0) + Number(b.external || 0) : 0) || Number(t?.total) || Number(t?.usdValue) || 0; };
+    const n = list.filter((x) => tvsOf(x) > 0).length;
+    if (n > 0) return true;
+    const first = p && typeof p === 'object' ? Object.entries(p)[0] : undefined;
+    console.log('      first project entry:', JSON.stringify(first ?? null).slice(0, 700));
+    return root?.chart ? 'all-L2 total works; per-project format not recognised yet — paste the "first project entry" line above' : `format not recognised (keys: ${Object.keys(root ?? {}).join(',')})`;
   },
 });
 
