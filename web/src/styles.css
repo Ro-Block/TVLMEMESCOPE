@@ -1,10 +1,10 @@
 :root {
   color-scheme: light;
-  --bg: #f4f4f2;
-  --surface-1: #fcfcfb;
-  --surface-2: #f0efec;
-  --border: #e2e1dc;
-  --grid: #e8e7e3;
+  --bg: #f2f4f8;
+  --surface-1: #fcfdff;
+  --surface-2: #eceff5;
+  --border: #dde1ea;
+  --grid: #e6e9f0;
   --text-primary: #0b0b0b;
   --text-secondary: #52514e;
   --text-muted: #7a7974;
@@ -23,18 +23,25 @@
   --eco-other: #8a8984;
   --shadow: 0 1px 2px rgb(0 0 0 / 6%), 0 4px 16px rgb(0 0 0 / 6%);
   --mono: 'JetBrains Mono', ui-monospace, monospace;
+  --display: 'Chakra Petch', Inter, system-ui, sans-serif;
+  --nebula: radial-gradient(900px 480px at 85% -8%, rgb(91 75 214 / 7%), transparent 70%), radial-gradient(700px 420px at -5% 105%, rgb(31 143 184 / 6%), transparent 70%);
+  /* The solar map is a window into space: it stays dark in both themes. */
+  --space-bg: #060913;
+  --space-orbit: rgb(170 185 255 / 22%);
+  --space-text: #e9edf7;
+  --space-muted: #a3adc4;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     color-scheme: dark;
-    --bg: #121211;
-    --surface-1: #1a1a19;
-    --surface-2: #232321;
-    --border: #2f2f2c;
-    --grid: #2a2a28;
+    --bg: #070a12;
+    --surface-1: #0e1320;
+    --surface-2: #161d2e;
+    --border: #242d42;
+    --grid: #1b2335;
     --text-primary: #ffffff;
-    --text-secondary: #c3c2b7;
-    --text-muted: #8f8e86;
+    --text-secondary: #b7bfd3;
+    --text-muted: #7f89a3;
     --accent: #3987e5;
     --flow-in: #3987e5;
     --flow-out: #e66767;
@@ -47,20 +54,20 @@
     --eco-bnb: #c98500;
     --eco-base: #d55181;
     --eco-robinhood: #008300;
-    --eco-other: #75746f;
+    --eco-other: #7a8196;
     --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 6px 24px rgb(0 0 0 / 35%);
   }
 }
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --bg: #121211;
-  --surface-1: #1a1a19;
-  --surface-2: #232321;
-  --border: #2f2f2c;
-  --grid: #2a2a28;
+  --bg: #070a12;
+  --surface-1: #0e1320;
+  --surface-2: #161d2e;
+  --border: #242d42;
+  --grid: #1b2335;
   --text-primary: #ffffff;
-  --text-secondary: #c3c2b7;
-  --text-muted: #8f8e86;
+  --text-secondary: #b7bfd3;
+  --text-muted: #7f89a3;
   --accent: #3987e5;
   --flow-in: #3987e5;
   --flow-out: #e66767;
@@ -73,14 +80,15 @@
   --eco-bnb: #c98500;
   --eco-base: #d55181;
   --eco-robinhood: #008300;
-  --eco-other: #75746f;
+  --eco-other: #7a8196;
   --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 6px 24px rgb(0 0 0 / 35%);
 }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; }
 body {
-  background: var(--bg);
+  background: var(--nebula), var(--bg);
+  background-attachment: fixed;
   color: var(--text-primary);
   font: 14px/1.45 Inter, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -272,3 +280,49 @@ tbody tr[aria-selected='true'] { background: var(--surface-2); }
 .snipe-tag { display: inline-flex; gap: 4px; align-items: center; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 99px; border: 1px solid var(--border); color: var(--text-secondary); }
 .snipe-tag.heavy { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, transparent); }
 .toast.ring { border-left-color: var(--warn); }
+
+/* ---------- interstellar theme ---------- */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) { --nebula: radial-gradient(900px 480px at 85% -8%, rgb(91 75 214 / 22%), transparent 70%), radial-gradient(700px 420px at -5% 105%, rgb(31 143 184 / 16%), transparent 70%); }
+}
+:root[data-theme='dark'] { --nebula: radial-gradient(900px 480px at 85% -8%, rgb(91 75 214 / 22%), transparent 70%), radial-gradient(700px 420px at -5% 105%, rgb(31 143 184 / 16%), transparent 70%); }
+.page-head h1, .kpi .value, .brand { font-family: var(--display); letter-spacing: 0; }
+.page-head h1 { font-size: 26px; text-wrap: balance; }
+.card-head h2 { font-family: var(--display); font-size: 15px; letter-spacing: 0.01em; }
+.kpi .label, th { letter-spacing: 0.05em; }
+.brand-mark { width: 22px; height: 22px; flex: none; }
+.brand-mark .moon { transform-origin: 11px 11px; animation: orbit 6s linear infinite; }
+@keyframes orbit { to { transform: rotate(360deg); } }
+
+.space { position: relative; border-radius: 12px; overflow: hidden; background: var(--space-bg); }
+.space svg { display: block; width: 100%; height: auto; }
+.space .orbit-label { fill: var(--space-muted); font-size: 11px; font-family: var(--mono); paint-order: stroke; stroke: var(--space-bg); stroke-width: 4px; }
+.space .sun-value { fill: #2a1602; font-family: var(--display); font-size: 17px; font-weight: 700; }
+.space .sun-label { fill: #5a3408; font-size: 10px; font-weight: 600; letter-spacing: 0.04em; }
+.space .corona { transform-box: fill-box; transform-origin: center; animation: corona 5s ease-in-out infinite; }
+@keyframes corona { 50% { transform: scale(1.08); opacity: 0.8; } }
+.space .twinkle { animation: twinkle 3.2s ease-in-out infinite; }
+@keyframes twinkle { 50% { opacity: 0.1; } }
+.space .comet { stroke-linecap: round; stroke-dasharray: 2 13; animation: flow 1.6s linear infinite; }
+.space .planet { cursor: pointer; outline: none; }
+.space .planet-name { fill: var(--space-text); font-size: 12px; font-weight: 600; paint-order: stroke; stroke: var(--space-bg); stroke-width: 3px; }
+.space .planet-net { fill: var(--space-muted); font-size: 10.5px; font-family: var(--mono); paint-order: stroke; stroke: var(--space-bg); stroke-width: 3px; }
+.space .planet:focus-visible .planet-name { text-decoration: underline; }
+.space .target-ring { transform-box: fill-box; transform-origin: center; animation: orbit 8s linear infinite; }
+.space-btn { position: absolute; right: 10px; bottom: 10px; background: rgb(14 19 32 / 80%); color: var(--space-text); border: 1px solid rgb(170 185 255 / 25%); border-radius: 8px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
+.space-btn:hover, .space-btn:focus-visible { border-color: rgb(170 185 255 / 60%); }
+.space-key { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--text-secondary); }
+.space-key span { display: inline-flex; align-items: center; gap: 6px; }
+@media (prefers-reduced-motion: reduce) {
+  .space .corona, .space .twinkle, .space .comet, .space .target-ring, .brand-mark .moon { animation: none; }
+}
+/* On phones the map is scaled down ~2x: bigger names, drop the per-planet net (it's in the tooltip and table). */
+.space { container-type: inline-size; }
+@container (max-width: 560px) {
+  .space .planet-name { font-size: 23px; stroke-width: 5px; }
+  .space .planet-net { display: none; }
+  .space .orbit-label { font-size: 19px; }
+  .space .sun-value { font-size: 24px; }
+  .space .sun-label { display: none; }
+  .space-btn { font-size: 11px; padding: 3px 8px; right: 6px; bottom: 6px; }
+}

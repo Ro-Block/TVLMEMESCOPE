@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { FlowWindow } from '../../../shared/types.ts';
 import { AreaChart, MirrorBars, NetFlowBars } from '../components/charts.tsx';
-import { EcosystemLegend, LiquidityMap } from '../components/LiquidityMap.tsx';
+import { EcosystemLegend, LiquidityMap, SpaceKey } from '../components/LiquidityMap.tsx';
 import { api } from '../lib/api.ts';
 import { ecoColor } from '../lib/colors.ts';
 import { pct, signedUsd, timeAgo, usd } from '../lib/format.ts';
@@ -24,8 +24,8 @@ export function FlowsPage() {
     <div className="page">
       <div className="page-head">
         <div>
-          <h1>Liquidity rotation</h1>
-          <p>Where bridged capital is moving between chains. Node size is TVL, curves are net flows, and the dashes travel toward the chain receiving liquidity.</p>
+          <h1>Liquidity system</h1>
+          <p>Where bridged capital is moving between chains. Every chain is a planet orbiting the pool of bridged liquidity; comets show which way the money flows. Hover a planet to pause and trace its routes, click it for details.</p>
         </div>
         <div className="spacer" />
         <span className={`badge ${data.source}`}>{data.source === 'live' ? 'Live · DefiLlama' : 'Simulated data'}</span>
@@ -64,13 +64,14 @@ export function FlowsPage() {
       <div className="flows-grid">
         <div className="card">
           <div className="card-head">
-            <h2>Liquidity map</h2>
+            <h2>Liquidity solar system</h2>
             <div className="spacer" />
             <EcosystemLegend present={new Set(data.chains.map((c) => c.ecosystem))} />
           </div>
-          <div className="card-body">
+          <div className="card-body" style={{ display: 'grid', gap: 12 }}>
+            <SpaceKey />
             <LiquidityMap chains={data.chains} flows={data.flows} windowLabel={win} selected={selected} onSelect={setSelected} />
-            <p className="note">
+            <p className="note" style={{ margin: 0 }}>
               Per-chain inflow and outflow are measured bridge volumes.{' '}
               {data.routing === 'gravity-estimate'
                 ? 'The chain-to-chain routes are estimated: DefiLlama reports totals per chain, so each chain’s outflow is split across destinations by how much they received.'

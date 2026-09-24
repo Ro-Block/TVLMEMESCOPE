@@ -93,7 +93,14 @@ export function App() {
   return (
     <TooltipProvider>
       <header className="topbar">
-        <div className="brand"><span className="brand-dot" aria-hidden />TVL Memescope</div>
+        <div className="brand">
+          <svg className="brand-mark" viewBox="0 0 22 22" aria-hidden>
+            <circle cx="11" cy="11" r="4" fill="#ffc35e" />
+            <ellipse cx="11" cy="11" rx="9.5" ry="9.5" fill="none" stroke="var(--accent)" strokeOpacity=".55" />
+            <g className="moon"><circle cx="11" cy="1.5" r="2.2" fill="var(--accent)" /></g>
+          </svg>
+          TVL Memescope
+        </div>
         <nav className="tabs" role="tablist">
           {TABS.map(([t, label]) => (
             <button key={t} role="tab" className="tab" aria-selected={tab === t} onClick={() => go(t)}>
