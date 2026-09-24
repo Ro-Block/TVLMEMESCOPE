@@ -9,10 +9,21 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export interface Health {
+  node: string;
+  dataMode: string;
+  memescope: string;
+  flows: string;
+  scanner: StatusResponse['scanner'];
+  ledger: StatusResponse['ledger'];
+  sources: Record<string, { ok: boolean; lastError?: string; lastOk?: number }>;
+}
+
 export type RankedTrader = TraderStats & { qualifies: boolean };
 
 export const api = {
   status: () => req<StatusResponse>('/api/status'),
+  health: () => req<Health>('/api/health'),
   flows: (w: FlowWindow) => req<FlowsResponse>(`/api/flows?window=${w}`),
   chain: (id: string, w: FlowWindow) => req<ChainDetail>(`/api/chains/${id}?window=${w}`),
   pairs: (chains: string[], maxAgeHours: number) => req<Pair[]>(`/api/pairs?chains=${chains.join(',')}&maxAgeHours=${maxAgeHours}`),

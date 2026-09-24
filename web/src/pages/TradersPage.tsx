@@ -117,7 +117,7 @@ export function TradersPage({ chains, windowDays, onWallet }: { chains: MemeChai
             </thead>
             <tbody>
               {rows.length === 0 && (
-                <tr><td colSpan={13} className="muted" style={{ textAlign: 'center', padding: 30 }}>No wallets match yet. The ledger fills up as the scanner sees trades.</td></tr>
+                <tr><td colSpan={13} className="muted" style={{ textAlign: 'center', padding: 30 }}>No wallets match yet. On live data the app builds its own trade history from the moment it starts, so rankings need a few hours of trades (60 days of history needs the Dune backfill, see the README). Lower “Min score” to see early wallets.</td></tr>
               )}
               {rows.map((t, i) => (
                 <tr key={`${t.chain}:${t.wallet}`} className="clickable" onClick={() => onWallet(t.chain, t.wallet)}>

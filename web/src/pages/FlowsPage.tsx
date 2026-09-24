@@ -21,7 +21,7 @@ export function FlowsPage() {
   const [lastLoad, setLastLoad] = useState(Date.now());
   useEffect(() => setLastLoad(Date.now()), [data]);
 
-  if (error && !data) return <div className="page"><div className="card card-body">Couldn't load flows: {error}</div></div>;
+  if (error && !data) return <div className="page"><div className="card card-body">Couldn't load flows: {error}<p className="note">Click the Data indicator at the top for details, or run <code>npm run doctor</code> in PowerShell.</p></div></div>;
   if (!data) return <div className="page muted">Loading liquidity map…</div>;
 
   const ranked = [...data.chains].sort((a, b) => b.net - a.net);

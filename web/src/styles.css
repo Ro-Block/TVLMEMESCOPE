@@ -346,3 +346,10 @@ tbody tr[aria-selected='true'] { background: var(--surface-2); }
 .source-bar .source.ok i { color: var(--good); }
 .source-bar .source.bad i { color: var(--bad); }
 .space .planet-vol { fill: #9fd0ff; font-size: 10px; font-family: var(--mono); paint-order: stroke; stroke: var(--space-bg); stroke-width: 3px; }
+
+.health-btn { border: 1px solid var(--border); background: var(--surface-1); border-radius: 99px; padding: 3px 10px; font-size: 12px; cursor: pointer; color: var(--text-secondary); }
+.health-btn i { font-style: normal; color: var(--text-muted); }
+.health-btn.ok i { color: var(--good); }
+.health-btn.bad { border-color: color-mix(in srgb, var(--bad) 55%, transparent); color: var(--text-primary); }
+.health-btn.bad i { color: var(--bad); }
+code { font-family: var(--mono); font-size: 0.92em; background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }

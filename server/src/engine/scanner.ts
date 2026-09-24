@@ -42,6 +42,12 @@ const DUNE_CHAIN: Record<string, string> = { bnb: 'bsc', base: 'base', solana: '
 export class LiveScanner {
   private lastPolled = new Map<string, number>();
   private imageTried = new Map<string, number>();
+  /** What the scanner has done so far, shown in the UI while live data builds up. */
+  static stats = { cycles: 0, lastCycleAt: 0, pairsSeen: 0, tradesSeen: 0, errors: [] as { at: number; msg: string }[] };
+  private note(msg: string) {
+    console.warn(`[scanner] ${msg}`);
+    LiveScanner.stats.errors = [{ at: Date.now(), msg: msg.slice(0, 200) }, ...LiveScanner.stats.errors].slice(0, 8);
+  }
   private cycle = 0;
   private timer: NodeJS.Timeout | null = null;
 
@@ -68,6 +74,7 @@ export class LiveScanner {
         .catch((e) => console.warn('[scanner]', e.message))
         .finally(() => (this.timer = setTimeout(run, SCAN.intervalMs)));
     void this.refreshSeeds();
+    void LiveScanner.probe();
     setInterval(() => void this.refreshSeeds(), 6 * 3_600_000).unref();
     setInterval(() => this.ledger.prune(), 3_600_000).unref();
     run();
@@ -79,6 +86,8 @@ export class LiveScanner {
 
   private async tick() {
     this.cycle++;
+    LiveScanner.stats.cycles = this.cycle;
+    LiveScanner.stats.lastCycleAt = Date.now();
     const withTrending = this.cycle % 5 === 1;
     await Promise.all(
       MEME_CHAINS.map(async (c) => {
@@ -86,8 +95,9 @@ export class LiveScanner {
           const pairs = (await gt.newPools(c.gt)).map((p) => toPair(p, c, false));
           if (withTrending) pairs.push(...(await gt.trendingPools(c.gt, '1h')).map((p) => toPair(p, c, true)));
           this.ledger.upsertPools(pairs);
+          LiveScanner.stats.pairsSeen += pairs.length;
         } catch (e) {
-          console.warn(`[scanner] ${c.id}: ${(e as Error).message}`);
+          this.note(`${c.id} new pairs: ${(e as Error).message}`);
         }
       }),
     );
@@ -113,9 +123,10 @@ export class LiveScanner {
         const trades = await gt.poolTrades(chain.gt, p.address, p.baseAddress);
         this.lastPolled.set(p.id, Date.now());
         const fresh = this.ledger.insertTrades(trades.map((t) => ({ ...t, chain: p.chain, pool: p.address })));
+        LiveScanner.stats.tradesSeen += fresh.length;
         if (fresh.length) this.onTrades(p, fresh);
       } catch (e) {
-        console.warn(`[scanner] trades ${p.id}: ${(e as Error).message}`);
+        this.note(`trades ${p.chain}: ${(e as Error).message}`);
       }
     }
   }

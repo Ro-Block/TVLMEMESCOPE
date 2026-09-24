@@ -32,6 +32,8 @@ npm run dev                 # API on :8787, UI on http://localhost:5173
 
 Production: `npm run build && npm start`.
 
+**No data?** Run `npm run doctor`. It checks Node and your `.env`, then tests every data source from your computer and says what's wrong (blocked, rate-limited, antivirus intercepting HTTPS, DNS…). In the app, the **Data** indicator in the top bar opens the same status per source, with the last error.
+
 The liquidity map also plays live events. A **super comet** fires when $10M or more moves on one route within an hour (`SUPER_COMET_USD`). A **supernova** fires when a chain's stablecoins fall by $50M or more in 24h, or it bridges out $50M or more net within an hour (`SUPERNOVA_USD`).
 
 Standalone demo page: `npm run snapshot` runs the simulator for about 45 seconds, records the API responses and writes one self-contained `dist-static/index.html`. That page needs no server: requests are answered from the recorded data, and sniper shots and alerts are replayed. The API serves the built UI on `PORT`.

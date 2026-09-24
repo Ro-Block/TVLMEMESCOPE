@@ -208,6 +208,8 @@ export interface StatusResponse {
   ledger: { trades: number; wallets: number; pools: number; oldest: number | null };
   sources: Record<string, { ok: boolean; lastError?: string; lastOk?: number }>;
   notify: { telegram: boolean; discord: boolean };
+  /** Live scanner progress (null on simulated data). */
+  scanner: { cycles: number; lastCycleAt: number; pairsSeen: number; tradesSeen: number; errors: { at: number; msg: string }[] } | null;
 }
 
 // ---------- live flow events (solar map effects) ----------

@@ -15,7 +15,8 @@
     "start": "tsx --env-file-if-exists=.env server/src/index.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --test --import tsx server/test/*.test.ts",
-    "snapshot": "vite build && node scripts/snapshot.mjs"
+    "snapshot": "vite build && node scripts/snapshot.mjs",
+    "doctor": "node scripts/doctor.mjs"
   },
   "dependencies": {
     "d3-array": "^3.2.4",

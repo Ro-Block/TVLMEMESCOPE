@@ -1,6 +1,6 @@
 import { TREND_WINDOWS, type ChainDetail, type ChainNode, type DataSource, type Flow, type FlowWindow, type FlowsResponse, type SourceStatus } from '../../../shared/types.ts';
 import { DATA_MODE, FLOW_CHAINS, type ChainMeta } from '../config.ts';
-import { cached } from '../http.ts';
+import { swr } from '../http.ts';
 import * as llama from '../sources/defillama.ts';
 import * as gt from '../sources/geckoterminal.ts';
 import * as wh from '../sources/wormhole.ts';
@@ -105,14 +105,37 @@ async function firstWorking<T>(aliases: string[], fn: (name: string) => Promise<
 const meta = (id: string) => FLOW_CHAINS.find((c) => c.id === id)!;
 const byWh = new Map(FLOW_CHAINS.filter((c) => c.wormhole).map((c) => [c.wormhole!, c.id]));
 
-const tvlNow = cached(5 * 60_000, () => track('DefiLlama TVL', llama.chainsTvl()));
-const protocolTvl = cached(5 * 60_000, (slug) => llama.protocolTvl(slug));
-const tvlHist = cached(60 * 60_000, async (id) => (await firstWorking(meta(id).llama, llama.chainTvlHistory, (r) => r.length > 0)) ?? []);
-const stablesNow = cached(5 * 60_000, () => track('DefiLlama stablecoins', llama.stablecoinChains()));
-const stablesHist = cached(30 * 60_000, async (id) => (await firstWorking(meta(id).llama, llama.stablecoinHistory, (r) => r.length > 0)) ?? []);
-const dex = cached(15 * 60_000, async (id) => firstWorking(meta(id).llama, llama.dexVolume, (r) => r.daily.length > 0 || r.total24h > 0));
-const whHourly = cached(2 * 60_000, () => track('Wormholescan routes', wh.hourly(26), 'observed chain-pair volume, all Wormhole apps'));
-const whDaily = cached(15 * 60_000, () => wh.daily(45));
+// Stale-while-revalidate: requests get the last good value instantly; refreshes run in the background.
+const tvlNow = swr(5 * 60_000, () => track('DefiLlama TVL', llama.chainsTvl()));
+const protocolTvl = swr(5 * 60_000, (slug) => llama.protocolTvl(slug));
+const tvlHist = swr(60 * 60_000, async (id) => (await firstWorking(meta(id).llama, llama.chainTvlHistory, (r) => r.length > 0)) ?? []);
+const stablesNow = swr(5 * 60_000, () => track('DefiLlama stablecoins', llama.stablecoinChains()));
+const stablesHist = swr(30 * 60_000, async (id) => (await firstWorking(meta(id).llama, llama.stablecoinHistory, (r) => r.length > 0)) ?? []);
+const dex = swr(15 * 60_000, async (id) => track('DefiLlama DEX volume', firstWorking(meta(id).llama, llama.dexVolume, (r) => r.daily.length > 0 || r.total24h > 0)));
+const whHourly = swr(2 * 60_000, () => track('Wormholescan routes', wh.hourly(26), 'observed chain-pair volume, all Wormhole apps'));
+const whDaily = swr(15 * 60_000, () => wh.daily(45));
+
+/** Loads every source once at startup, one after another, so the first page view has data. */
+export async function warmFlows() {
+  if (DATA_MODE === 'demo') return;
+  const steps: [string, () => Promise<unknown>][] = [
+    ['TVL', () => tvlNow('all', 30_000)],
+    ['stablecoins', () => stablesNow('all', 30_000)],
+    ['routes', () => whHourly('all', 45_000)],
+    ['daily routes', () => whDaily('all', 45_000)],
+  ];
+  for (const c of FLOW_CHAINS) {
+    steps.push([`${c.id} TVL history`, () => tvlHist(c.id, 20_000)]);
+    steps.push([`${c.id} stablecoin history`, () => stablesHist(c.id, 20_000)]);
+    steps.push([`${c.id} DEX volume`, () => dex(c.id, 25_000)]);
+    if (c.protocol) steps.push([`${c.id} protocol TVL`, () => protocolTvl(c.protocol!, 15_000)]);
+  }
+  const t0 = Date.now();
+  let ok = 0;
+  for (const [, run] of steps) if ((await run().catch(() => null)) !== null) ok++;
+  console.log(`[flows] warm-up: ${ok}/${steps.length} source loads succeeded in ${((Date.now() - t0) / 1000).toFixed(0)}s`);
+  for (const s of status.values()) if (!s.ok) console.warn(`[flows] ${s.name} failed: ${s.note}`);
+}
 
 /** Pool liquidity + short-window DEX volume, refreshed one chain at a time to stay inside GeckoTerminal's free limit. */
 const pools = new Map<string, { liquidity: number; m5: number; h1: number; h6: number; h24: number; at: number }>();
@@ -142,12 +165,16 @@ export function startPoolRotation(everyMs = 30_000) {
   poolTimer.unref();
 }
 
-const settle = async <T,>(p: Promise<T>): Promise<T | null> => p.catch(() => null);
+const settle = async <T,>(p: Promise<T | null>): Promise<T | null> => p.catch(() => null);
 
 async function liveFlows(window: FlowWindow): Promise<FlowsResponse> {
   const trend = isTrend(window);
-  const [tvls, stables, hourly, daily] = await Promise.all([settle(tvlNow('all')), settle(stablesNow('all')), settle(whHourly('all')), trend && window !== '1d' ? settle(whDaily('all')) : Promise.resolve(null)]);
-  if (!tvls && !stables && !hourly) throw new Error('no live data source reachable (DefiLlama, Wormholescan)');
+  // Core sources get a few seconds on a cold start; everything else uses what's cached so far.
+  const [tvls, stables, hourly, daily] = await Promise.all([settle(tvlNow('all', 8_000)), settle(stablesNow('all', 8_000)), settle(whHourly('all', 8_000)), trend && window !== '1d' ? settle(whDaily('all', 8_000)) : Promise.resolve(null)]);
+  if (!tvls && !stables && !hourly) {
+    const why = [...status.values()].filter((s) => !s.ok).map((s) => `${s.name}: ${s.note}`).join('; ');
+    throw new Error(`no live data source answered yet${why ? ` (${why})` : ' (still loading, retry in a few seconds)'}`);
+  }
 
   const matrix = trend && window !== '1d' ? pairMatrix(daily ?? [], window === '3d' ? 3 : 7, (x) => byWh.get(x)) : pairMatrix(hourly ?? [], WINDOW_HOURS[window], (x) => byWh.get(x));
   const tvlByName = new Map((tvls ?? []).map((c) => [c.name.toLowerCase(), c.tvl]));
@@ -156,7 +183,7 @@ async function liveFlows(window: FlowWindow): Promise<FlowsResponse> {
   const chains: ChainNode[] = await Promise.all(
     FLOW_CHAINS.map(async (m: ChainMeta) => {
       let tvl = m.llama.map((n) => tvlByName.get(n.toLowerCase())).find((v) => v !== undefined) ?? 0;
-      if (!tvl && m.protocol) tvl = await protocolTvl(m.protocol).catch(() => 0);
+      if (!tvl && m.protocol) tvl = (await protocolTvl(m.protocol).catch(() => null)) ?? 0;
       const hist = await settle(tvlHist(m.id));
       const weekAgo = hist?.length ? valueAt(hist, now - 7 * DAY) : null;
       const stable = m.llama.map((n) => stables?.get(n.toLowerCase())).find((v) => v !== undefined) ?? null;
@@ -294,9 +321,7 @@ function demoFlows(window: FlowWindow): FlowsResponse {
 let flowSource: DataSource = DATA_MODE === 'demo' ? 'demo' : 'live';
 
 export async function flowsSource(): Promise<DataSource> {
-  if (DATA_MODE === 'demo') return 'demo';
-  await getFlows('1d').catch(() => {});
-  return flowSource;
+  return DATA_MODE === 'demo' ? 'demo' : flowSource;
 }
 
 export async function getFlows(window: FlowWindow): Promise<FlowsResponse> {

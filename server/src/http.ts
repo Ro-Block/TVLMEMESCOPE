@@ -85,3 +85,38 @@ export const num = (v: unknown): number => {
   const n = typeof v === 'number' ? v : parseFloat(String(v ?? ''));
   return Number.isFinite(n) ? n : 0;
 };
+
+/**
+ * Stale-while-revalidate cache: returns the last good value immediately and refreshes it in the
+ * background once it is older than `ttlMs`. With nothing cached yet, waits up to `waitMs` for the
+ * first load (then returns null and keeps loading), so slow sources never block a response.
+ */
+export function swr<T>(ttlMs: number, fn: (key: string) => Promise<T>) {
+  const store = new Map<string, { at: number; value?: T; loading?: Promise<T> }>();
+  const load = (key: string) => {
+    const e = store.get(key) ?? { at: 0 };
+    if (e.loading) return e.loading;
+    e.loading = fn(key)
+      .then((v) => {
+        e.value = v;
+        e.at = Date.now();
+        return v;
+      })
+      .finally(() => {
+        e.loading = undefined;
+      });
+    store.set(key, e);
+    e.loading.catch(() => {});
+    return e.loading;
+  };
+  return async (key: string, waitMs = 0): Promise<T | null> => {
+    const e = store.get(key);
+    if (e?.value !== undefined) {
+      if (Date.now() - e.at > ttlMs) void load(key).catch(() => {});
+      return e.value;
+    }
+    const p = load(key);
+    if (waitMs <= 0) return null;
+    return Promise.race([p.catch(() => null), new Promise<null>((r) => setTimeout(() => r(null), waitMs))]);
+  };
+}

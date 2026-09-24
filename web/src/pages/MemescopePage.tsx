@@ -109,7 +109,7 @@ function Column({ title, hint, pairs, now, isNew, onWallet, highlight }: { title
         <span className="badge">{pairs.length}</span>
       </div>
       <div className="col-list">
-        {pairs.length === 0 && <div className="empty">{highlight ? 'No qualifying wallets have bought yet. Loosen the filters on the Alerts tab.' : 'Nothing yet, waiting for the next scan.'}</div>}
+        {pairs.length === 0 && <div className="empty">{highlight ? 'No qualifying wallets have bought yet. Loosen the filters on the Alerts tab.' : 'Nothing yet. On live data the first pairs appear within about a minute of starting; check the Data indicator at the top if this stays empty.'}</div>}
         {pairs.map((p) => (
           <PairRow key={p.id} p={p} now={now} flash={isNew(p.id)} onWallet={onWallet} />
         ))}

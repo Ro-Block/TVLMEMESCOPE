@@ -7,13 +7,14 @@ import { openDb } from './db.ts';
 import { AlertEngine } from './engine/alerts.ts';
 import { DemoMarket } from './engine/demo-sim.ts';
 import { FlowEventEngine } from './engine/flow-events.ts';
-import { flowsSource, getChainDetail, getFlows, parseWindow, startPoolRotation } from './engine/flows.ts';
+import { flowsSource, getChainDetail, getFlows, parseWindow, startPoolRotation, warmFlows } from './engine/flows.ts';
 import { Ledger } from './engine/ledger.ts';
 import { LiveScanner, type TradeSink } from './engine/scanner.ts';
 import { SniperEngine } from './engine/snipers.ts';
 import { sourceHealth } from './http.ts';
 import { notifyChannels } from './notify.ts';
 
+// DATA_MODE=live never waits on a probe; auto gives GeckoTerminal a few seconds to answer.
 const memeMode = DATA_MODE === 'demo' ? 'demo' : DATA_MODE === 'live' || (await LiveScanner.probe()) ? 'live' : 'demo';
 if (memeMode === 'demo') console.log('[memescope] running on the built-in market simulator (set DATA_MODE=live to force live APIs)');
 
@@ -38,7 +39,8 @@ else new LiveScanner(ledger, onTrades).start();
 
 startPoolRotation();
 const flowEvents = new FlowEventEngine();
-flowEvents.start(DATA_MODE === 'demo' ? 'demo' : (await flowsSource()) === 'live' ? 'live' : 'demo');
+// Never block startup on network calls: the server answers at once and fills in data as it arrives.
+flowEvents.start(DATA_MODE === 'demo' ? 'demo' : 'live');
 
 const app = express();
 app.use(express.json());
@@ -66,6 +68,7 @@ app.get('/api/status', wrap(async (): Promise<StatusResponse> => ({
   ledger: ledger.counts(),
   sources: sourceHealth,
   notify: notifyChannels(),
+  scanner: memeMode === 'live' ? LiveScanner.stats : null,
 })));
 
 app.get('/api/flows', wrap((req) => getFlows(windowOf(req.query.window))));
@@ -185,4 +188,18 @@ if (existsSync(dist)) {
   app.get(/^\/(?!api\/).*/, (_req, res) => res.sendFile(resolve(dist, 'index.html')));
 }
 
-app.listen(PORT, () => console.log(`[api] http://localhost:${PORT}  (flows: ${DATA_MODE}, memescope: ${memeMode})`));
+app.get('/api/health', wrap(async () => ({
+  node: process.version,
+  dataMode: DATA_MODE,
+  memescope: memeMode,
+  flows: await flowsSource().catch(() => 'error'),
+  scanner: memeMode === 'live' ? LiveScanner.stats : null,
+  ledger: ledger.counts(),
+  sources: sourceHealth,
+})));
+
+app.listen(PORT, () => {
+  console.log(`[api] http://localhost:${PORT}  (data: ${DATA_MODE}, memescope: ${memeMode})`);
+  console.log('[api] open the app at http://localhost:5173 (npm run dev) or this port (npm start)');
+  void warmFlows();
+});

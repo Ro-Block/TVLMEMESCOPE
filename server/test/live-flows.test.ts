@@ -40,7 +40,9 @@ globalThis.fetch = (async (input: string | URL) => {
   return new Response('blocked', { status: 403 });
 }) as typeof fetch;
 
-const { getFlows } = await import('../src/engine/flows.ts');
+const { getFlows, warmFlows } = await import('../src/engine/flows.ts');
+// Same as the server does right after it starts listening.
+await warmFlows();
 
 test('live 1h window: observed Wormhole routes, units calibrated to USD', async () => {
   const f = await getFlows('1h');
