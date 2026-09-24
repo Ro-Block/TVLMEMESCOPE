@@ -164,7 +164,7 @@ export class SniperEngine {
         symbol: pair.baseSymbol,
         dex: pair.dex,
         token: pair.baseAddress,
-        imageUrl: pair.imageUrl,
+        imageUrl: pair.imageUrl ?? pair.imageFallbackUrl,
         delaySec,
         sniper,
         ringId,
@@ -197,7 +197,7 @@ export class SniperEngine {
         ts: now,
         kind: 'ring',
         chain: pair.chain,
-        pair: { id: pair.id, name: pair.name, symbol: pair.baseSymbol, address: pair.baseAddress, ageMin: (now - pair.createdAt) / 60_000, mcap: pair.mcap, liquidity: pair.liquidity, url: pair.url, imageUrl: pair.imageUrl, launchpad: pair.launchpad },
+        pair: { id: pair.id, name: pair.name, symbol: pair.baseSymbol, address: pair.baseAddress, ageMin: (now - pair.createdAt) / 60_000, mcap: pair.mcap, liquidity: pair.liquidity, url: pair.url, imageUrl: pair.imageUrl ?? pair.imageFallbackUrl, launchpad: pair.launchpad },
         wallets: members.map((m) => {
           const w = this.ledger.get(pair.chain, m.wallet);
           return { wallet: m.wallet, usd: m.usd, roi: w?.roi ?? 0, legitScore: w?.legitScore ?? 0, tier: w?.tier ?? 'none', label: w?.label };

@@ -12,6 +12,21 @@ interface DsPair {
   info?: { imageUrl?: string };
 }
 
+export interface DsProfile {
+  chain: string; // DexScreener chain id
+  token: string;
+  icon: string;
+}
+
+/** Tokens whose creators just published a DexScreener profile (logo, banner, links). */
+export async function latestProfiles(): Promise<DsProfile[]> {
+  const res = await getJson<{ chainId?: string; tokenAddress?: string; icon?: string }[]>('dexscreener', 'https://api.dexscreener.com/token-profiles/latest/v1', { limiter });
+  return (Array.isArray(res) ? res : []).filter((p) => p.chainId && p.tokenAddress && p.icon).map((p) => ({ chain: p.chainId!, token: p.tokenAddress!, icon: p.icon! }));
+}
+
+/** DexScreener's token image CDN. Not a documented API, so it's only used as a fallback. */
+export const cdnImage = (chain: string, token: string) => `https://dd.dexscreener.com/ds-data/tokens/${dsChain(chain)}/${chain === 'solana' ? token : token.toLowerCase()}.png`;
+
 /** Image URL per token address (up to 30 addresses per call). */
 export async function tokenImages(chain: string, tokens: string[]): Promise<Map<string, string>> {
   const out = new Map<string, string>();

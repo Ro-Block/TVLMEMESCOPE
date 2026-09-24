@@ -122,7 +122,7 @@ function PairRow({ p, now, flash, onWallet }: { p: Pair; now: number; flash: boo
   const ch = p.change.h1;
   return (
     <div className={`pair ${flash ? 'flash' : ''}`}>
-      <TokenAvatar symbol={p.baseSymbol} imageUrl={p.imageUrl} chain={p.chain} />
+      <TokenAvatar symbol={p.baseSymbol} imageUrl={p.imageUrl} fallbackUrl={p.imageFallbackUrl} chain={p.chain} />
       <div style={{ minWidth: 0 }}>
         <div className="pair-name">
           <b>{p.baseSymbol}</b>

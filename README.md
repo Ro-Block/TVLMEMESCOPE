@@ -9,7 +9,7 @@ Chains covered: **Solana, Base, Robinhood Chain, BNB Chain and HyperEVM/Hyperliq
 | Tab | What it shows |
 | --- | --- |
 | **Flows** | A **liquidity solar system**. The sun in the centre is the total liquidity bridged in the window. Chains are planets on three orbits by TVL class (> $5B, $1–5B, < $1B), sized by TVL. Comets are net chain-to-chain flows heading toward the receiving chain, and each planet's halo shows net inflow (blue) or outflow (red). Planets drift slowly; hover to pause and trace a chain's routes, or click for its TVL history, daily bridge in/out, counterpart chains, bridges and the top tokens bridged. Also: KPIs, diverging net-flow bars and a chain table. Windows: 24h / 7d / 30d. |
-| **Memescope** | Three live columns (**New pairs**, **Heating up**, **Smart money**) across the five chains, with chain, liquidity and age filters. Each pair shows the qualifying wallets that bought it. Each pair shows its **token logo** (from GeckoTerminal, or DexScreener's token profiles when GeckoTerminal has none) and the **launchpad** it came from: pump.fun, letsbonk.fun, boop.fun, Bags, Meteora DBC, Moonshot, Clanker, Zora, Virtuals, four.meme, Flap or LiquidLaunch. Launchpads are recognised from the DEX id or the vanity suffix the launchpad grinds into the mint (`…pump`, `…bonk`, `…4444`); there's a launchpad filter too. |
+| **Memescope** | Three live columns (**New pairs**, **Heating up**, **Smart money**) across the five chains, with chain, liquidity and age filters. Each pair shows the qualifying wallets that bought it. Each pair shows its **token logo**: the image the creator uploaded to their DexScreener token profile (picked up from DexScreener's latest-profiles feed and `tokens/v1` lookups), else GeckoTerminal's, else DexScreener's image CDN, else the token's initials and the **launchpad** it came from: pump.fun, letsbonk.fun, boop.fun, Bags, Meteora DBC, Moonshot, Clanker, Zora, Virtuals, four.meme, Flap or LiquidLaunch. Launchpads are recognised from the DEX id or the vanity suffix the launchpad grinds into the mint (`…pump`, `…bonk`, `…4444`); there's a launchpad filter too. |
 | **Sniper radar** | Snipers (buys within 1/2/3/5 s of pair creation), bundles (2+ wallets in the same block/slot), and **rings**: wallets linked because they keep sniping the same launches, with their exit behaviour (*dumps together*, *holds together*, *mixed*). A live **laser view** fires a beam from the wallet to the token on every buy (red beams back on sells) for rings, solo snipers and your watchlist. Filters: chain, launchpad/DEX, token-address prefix/suffix (`J7…`, `…pump`), ring intention. Tables list sniped launches (click for the opening buys: delay, block, size, bundle, ring, sold %, exit time) and sniper wallets. |
 | **Top traders** | A 60-day leaderboard: ROI, PnL, capital deployed, tokens, win rate, median hold, a 0–100 **legit score** and flags (`bot-like`, `one-hit`, `low-sample`, `small-size`). Watch or unwatch wallets, add your own (KOLs, known whales), and click a row for positions and trades. |
 | **Alerts** | A live feed (SSE) with toasts, browser notifications and sound, plus optional **Telegram** and **Discord** delivery. Alert rules can be edited: chains, min buy, max pair age, min ROI, min score, min tokens, cluster size and window, and "always alert on watchlist". |
@@ -32,6 +32,8 @@ npm run dev                 # API on :8787, UI on http://localhost:5173
 
 Production: `npm run build && npm start`.
 
+The liquidity map also plays live events: a **super comet** for a single bridge transfer of $10M or more (`SUPER_COMET_USD`), and a **supernova** when a chain loses $50M or more in one transfer (`SUPERNOVA_USD`) or bridges out 3× its usual day (`SUPERNOVA_SPIKE`). These come from DefiLlama's large bridge transactions; when both legs of a transfer are seen, the route is exact.
+
 Standalone demo page: `npm run snapshot` runs the simulator for about 45 seconds, records the API responses and writes one self-contained `dist-static/index.html`. That page needs no server: requests are answered from the recorded data, and sniper shots and alerts are replayed. The API serves the built UI on `PORT`.
 
 Requires **Node ≥ 22.13** (uses the built-in `node:sqlite`, no native modules).
@@ -46,7 +48,7 @@ The simulator is a small synthetic memecoin market: about 60 days of pump-and-du
 
 | Data | Source | Key? |
 | --- | --- | --- |
-| Token logos | GeckoTerminal `base_token.image_url`, then DexScreener `tokens/v1/{chain}/{addresses}` | no |
+| Token logos | DexScreener `token-profiles/latest/v1` and `tokens/v1/{chain}/{addresses}`, then GeckoTerminal `base_token.image_url`, then DexScreener's image CDN | no |
 | Chain TVL + history | DefiLlama `api.llama.fi/v2/chains`, `/v2/historicalChainTvl/{chain}` | no |
 | Bridge in/out per chain | DefiLlama bridges `bridgevolume/{chain}`, `bridgedaystats`, `bridges` | no |
 | New and trending pairs, trades | GeckoTerminal v2 `new_pools`, `trending_pools`, `pools/{pool}/trades` | no (the app rate-limits itself to 25 req/min) |

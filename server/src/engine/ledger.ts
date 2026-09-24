@@ -38,10 +38,17 @@ export class Ledger {
     }
   }
 
+  hasTokenImage(chain: string, token: string): boolean {
+    return !!this.db.prepare('SELECT 1 FROM token_images WHERE chain = ? AND token = ?').get(chain, token.toLowerCase());
+  }
+
   upsertPools(pairs: Pair[]) {
-    // A later poll without a logo must not wipe one we already found.
+    // A stored DexScreener logo wins over GeckoTerminal's, and a later poll never wipes it.
     const img = this.db.prepare('SELECT url FROM token_images WHERE chain = ? AND token = ?');
-    pairs = pairs.map((p) => (p.imageUrl ? p : { ...p, imageUrl: (img.get(p.chain, p.baseAddress.toLowerCase()) as { url: string } | undefined)?.url }));
+    pairs = pairs.map((p) => {
+      const stored = (img.get(p.chain, p.baseAddress.toLowerCase()) as { url: string } | undefined)?.url;
+      return stored ? { ...p, imageUrl: stored } : p;
+    });
     const stmt = this.db.prepare(`INSERT INTO pools (id, chain, address, token, symbol, created_at, price_usd, trending, updated_at, json)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET price_usd = excluded.price_usd, trending = MAX(pools.trending, excluded.trending), updated_at = excluded.updated_at, json = excluded.json`);

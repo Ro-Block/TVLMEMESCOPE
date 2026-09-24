@@ -21,6 +21,7 @@ export function toPair(p: gt.GtPool, chain: MemeChainMeta, trending: boolean): P
     baseAddress: p.baseAddress,
     quoteSymbol: p.quoteSymbol,
     imageUrl: p.imageUrl,
+    imageFallbackUrl: ds.cdnImage(chain.id, p.baseAddress),
     launchpad: detectLaunchpad(chain.id, p.dex, p.baseAddress),
     createdAt: p.createdAt,
     priceUsd: p.priceUsd,
@@ -119,12 +120,21 @@ export class LiveScanner {
     }
   }
 
-  /** Looks up logos on DexScreener for recent pairs GeckoTerminal had no image for. */
+  /**
+   * Token logos come from DexScreener first (creators upload them to their token profile), then
+   * GeckoTerminal. Newly published profiles are picked up every cycle; recent pairs are re-checked
+   * every 20 minutes until a DexScreener logo turns up.
+   */
   private async enrichImages() {
     const now = Date.now();
+    const dsToOurs = new Map(MEME_CHAINS.map((c) => [ds.dsChain(c.id), c.id]));
+    for (const p of await ds.latestProfiles().catch(() => [])) {
+      const chain = dsToOurs.get(p.chain);
+      if (chain) this.ledger.setTokenImage(chain, p.token, p.icon);
+    }
     const missing = this.ledger
       .pools({ sinceCreated: now - 24 * 3_600_000, limit: 500 })
-      .filter((p) => !p.imageUrl && now - (this.imageTried.get(p.id) ?? 0) > 20 * 60_000);
+      .filter((p) => !this.ledger.hasTokenImage(p.chain, p.baseAddress) && now - (this.imageTried.get(p.id) ?? 0) > 20 * 60_000);
     const byChain = new Map<string, string[]>();
     for (const p of missing) {
       this.imageTried.set(p.id, now);

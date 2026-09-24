@@ -59,6 +59,8 @@ export interface Pair {
   quoteSymbol: string;
   /** Token logo, when the source has one. */
   imageUrl?: string;
+  /** Tried when `imageUrl` is missing or fails to load (DexScreener's image CDN). */
+  imageFallbackUrl?: string;
   /** Launchpad that minted the token (pump.fun, four.meme, Clanker…), if recognised. */
   launchpad?: string;
   createdAt: number;

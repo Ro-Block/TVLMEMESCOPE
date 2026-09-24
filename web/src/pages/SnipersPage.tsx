@@ -195,7 +195,7 @@ export function SnipersPage({ chains, source, onWallet }: { chains: MemeChain[];
                     <tr className="clickable" aria-selected={open === l.pair.id} onClick={() => setOpen(open === l.pair.id ? null : l.pair.id)}>
                       <td>
                         <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
-                          <TokenAvatar symbol={l.pair.baseSymbol} imageUrl={l.pair.imageUrl} chain={l.pair.chain} size={30} />
+                          <TokenAvatar symbol={l.pair.baseSymbol} imageUrl={l.pair.imageUrl} fallbackUrl={l.pair.imageFallbackUrl} chain={l.pair.chain} size={30} />
                           <span>
                             <b>{l.pair.baseSymbol}</b> <span className="muted">{l.pair.dex}</span> <LaunchpadTag name={l.pair.launchpad} />
                             <div className="mono muted" style={{ fontSize: 11 }}>{shortAddr(l.pair.baseAddress)}</div>
